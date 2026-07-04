@@ -8,7 +8,7 @@ services:
       SA_PASSWORD: ${DB_SA_PASSWORD}
       MSSQL_PID: Express
     ports:
-      - "1433:1433"
+      - "14333:1433"
     volumes:
       - sqlserver_data:/var/opt/mssql
     healthcheck:
