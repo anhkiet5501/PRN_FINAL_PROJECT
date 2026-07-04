@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] — EduManager</title>
+    <meta name="description" content="@(ViewData["Description"] ?? "Hệ thống quản lý học tập EduManager")" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    @await RenderSectionAsync("Styles", required: false)
+</head>
+<body>
+    @{
+        var activePage = ViewData["ActivePage"]?.ToString() ?? "";
+        var isAuthenticated = User.Identity?.IsAuthenticated == true;
+        var isAdmin = isAuthenticated && User.IsInRole("Admin");
+        var isTeacher = isAuthenticated && User.IsInRole("Teacher");
+        var isStudent = isAuthenticated && User.IsInRole("Student");
+        var displayName = User.FindFirst("FullName")?.Value ?? User.Identity?.Name ?? "User";
+        var username = User.Identity?.Name ?? "—";
+        var email = User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value ?? "—";
+        var roleLabel = isAdmin ? "Quản trị viên" : isTeacher ? "Giảng viên" : "Sinh viên";
+    }
+
+    @if (isAuthenticated)
+    {
+        <div class="app-shell">
+            <aside class="app-sidebar">
+                <nav class="app-nav">
+                    @if (isAdmin)
+                    {
+                        <a href="/" class="app-nav-link @(activePage == "Home" ? "active" : "")">
+                            <i class="bi bi-house-door"></i> Trang chủ
+                        </a>
+                        <a href="/Admin/Users" class="app-nav-link @(activePage == "Users" ? "active" : "")">
+                            <i class="bi bi-people"></i> Quản lý người dùng
+                        </a>
+                        <a href="/Subjects" class="app-nav-link @(activePage == "Subjects" ? "active" : "")">
+                            <i class="bi bi-journal-bookmark"></i> Quản lý môn học
+                        </a>
+                        <a href="/Profile" class="app-nav-link @(activePage == "Profile" ? "active" : "")">
+                            <i class="bi bi-person"></i> Hồ sơ cá nhân
+                        </a>
+                    }
+                    else if (isTeacher)
+                    {
+                        <a href="/" class="app-nav-link @(activePage == "Home" ? "active" : "")">
+                            <i class="bi bi-house-door"></i> Trang chủ
+                        </a>
+                        <a href="/Subjects?filter=mine" class="app-nav-link @(activePage == "MySubjects" ? "active" : "")">
+                            <i class="bi bi-person-workspace"></i> Môn phụ trách
+                        </a>
+                        <a href="/Subjects?filter=all" class="app-nav-link @(activePage == "Subjects" ? "active" : "")">
+                            <i class="bi bi-journal-bookmark"></i> Tất cả môn học
+                        </a>
+                        <a href="/Profile" class="app-nav-link @(activePage == "Profile" ? "active" : "")">
+                            <i class="bi bi-person"></i> Hồ sơ cá nhân
+                        </a>
+                    }
+                    else
+                    {
+                        <a href="/" class="app-nav-link @(activePage == "Home" ? "active" : "")">
+                            <i class="bi bi-house-door"></i> Trang chủ
+                        </a>
+                        <a href="/Subjects" class="app-nav-link @(activePage == "Subjects" ? "active" : "")">
+                            <i class="bi bi-journal-bookmark"></i> Môn học
+                        </a>
+                        <a href="/Profile" class="app-nav-link @(activePage == "Profile" ? "active" : "")">
+                            <i class="bi bi-person"></i> Hồ sơ cá nhân
+                        </a>
+                    }
+                </nav>
+
+                <form method="post" action="/Auth/Logout" class="app-nav-logout">
+                    @Html.AntiForgeryToken()
+                    <button type="submit" class="app-nav-link app-nav-logout-btn">
+                        <i class="bi bi-box-arrow-right"></i> Đăng xuất
+                    </button>
+                </form>
+            </aside>
+
+            <div class="app-main">
+                <header class="app-header">
+                    <div class="app-header-title">EduManager Web App</div>
+                    <div class="app-header-actions">
+                        <span class="app-header-badge">@displayName</span>
+                        <div class="app-header-user-menu">
+                            <button type="button" class="app-header-role" id="userMenuBtn" aria-expanded="false" aria-haspopup="true">
+                                @roleLabel
+                                <i class="bi bi-chevron-down"></i>
+                            </button>
+                            <div class="app-header-user-panel" id="userMenuPanel" hidden>
+                                <div class="user-panel-header">
+                                    <span class="user-panel-avatar"><i class="bi bi-person-circle"></i></span>
+                                    <div>
+                                        <div class="user-panel-name">@displayName</div>
+                                        <div class="user-panel-role">@roleLabel</div>
+                                    </div>
+                                </div>
+                                <dl class="user-panel-info">
+                                    <div class="user-panel-row">
+                                        <dt>Tên đăng nhập</dt>
+                                        <dd>@username</dd>
+                                    </div>
+                                    <div class="user-panel-row">
+                                        <dt>Email</dt>
+                                        <dd>@email</dd>
+                                    </div>
+                                    <div class="user-panel-row">
+                                        <dt>Vai trò</dt>
+                                        <dd>@roleLabel</dd>
+                                    </div>
+                                </dl>
+                                <a href="/Profile" class="user-panel-link">
+                                    <i class="bi bi-person"></i> Xem hồ sơ đầy đủ
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </header>
+
+                <main class="app-content">
+                    @RenderBody()
+                </main>
+            </div>
+        </div>
+
+        <script>
+            (function () {
+                var btn = document.getElementById('userMenuBtn');
+                var panel = document.getElementById('userMenuPanel');
+                if (!btn || !panel) return;
+
+                function closeMenu() {
+                    panel.hidden = true;
+                    btn.setAttribute('aria-expanded', 'false');
+                    btn.classList.remove('is-open');
+                }
+
+                btn.addEventListener('click', function (e) {
+                    e.stopPropagation();
+                    var open = panel.hidden;
+                    panel.hidden = !open;
+                    btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+                    btn.classList.toggle('is-open', open);
+                });
+
+                document.addEventListener('click', closeMenu);
+                panel.addEventListener('click', function (e) { e.stopPropagation(); });
+            })();
+        </script>
+    }
+    else
+    {
+        <main class="app-content app-content--guest">
+            @RenderBody()
+        </main>
+    }
+
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

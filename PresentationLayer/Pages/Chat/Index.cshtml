@@ -1,0 +1,247 @@
+@page "{sessionId:int?}"
+@model PRN222_Assignment2.Pages.Chat.IndexModel
+@{
+    ViewData["Title"] = "Chat RAG";
+    ViewData["ActivePage"] = "Chat";
+}
+
+<h1 class="dashboard-title">CHAT RAG</h1>
+<p class="page-subtitle">Hỏi đáp với AI dựa trên tài liệu đã upload</p>
+
+@* Hidden antiforgery token for AJAX SendMessage handler *@
+@Html.AntiForgeryToken()
+
+<div class="chat-layout">
+    <!-- Session List -->
+    <div class="session-list">
+        <div class="session-header">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <h3>Lịch sử chat</h3>
+                <button class="btn btn-primary btn-sm" onclick="showNewSessionModal()">+</button>
+            </div>
+        </div>
+        <div class="sessions-scroll">
+            @foreach (var session in Model.Sessions)
+            {
+                <div class="session-item @(session.ChatSessionId == Model.CurrentSessionId ? "active" : "")"
+                     onclick="window.location='/Chat/@session.ChatSessionId'">
+                    <div class="title">@session.SessionTitle</div>
+                    <div class="meta">@session.SubjectName · @session.MessageCount tin nhắn</div>
+                </div>
+            }
+            @if (!Model.Sessions.Any())
+            {
+                <p style="text-align:center; padding:2rem 0.5rem; font-size:0.8rem; color:#6c757d;">
+                    Chưa có cuộc trò chuyện nào
+                </p>
+            }
+        </div>
+    </div>
+
+    <!-- Chat Area -->
+    <div class="chat-area">
+        @if (Model.CurrentSession != null)
+        {
+            <div class="chat-header">
+                <div>
+                    <strong style="font-size:0.9rem;">@Model.CurrentSession.SessionTitle</strong>
+                    <div style="font-size:0.75rem; color:#6c757d;">
+                        @Model.CurrentSession.SubjectName · @Model.CurrentSession.AiModelName
+                    </div>
+                </div>
+            </div>
+
+            <div class="messages-container" id="messages-container">
+                @foreach (var msg in Model.Messages)
+                {
+                    <div class="message @msg.Role">
+                        <div class="message-bubble">@msg.Content</div>
+                        <div class="message-meta">
+                            @msg.CreatedAt.ToString("HH:mm")
+                            @if (msg.LatencyMs.HasValue) { <span>· @msg.LatencyMs ms</span> }
+                        </div>
+                        @if (msg.Citations.Any())
+                        {
+                            <div class="citations">
+                                @foreach (var cite in msg.Citations)
+                                {
+                                    <span class="citation-chip" title="@cite.ChunkText[..Math.Min(200, cite.ChunkText.Length)]...">
+                                        @cite.DocumentName (@cite.SimilarityScore.ToString("P0"))
+                                    </span>
+                                }
+                            </div>
+                        }
+                    </div>
+                }
+                <div id="typing-indicator" style="display:none;" class="message assistant">
+                    <div class="typing-indicator">
+                        <div class="dot"></div>
+                        <div class="dot"></div>
+                        <div class="dot"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="chat-input-area">
+                <div class="input-row">
+                    <textarea id="chat-input" class="chat-textarea"
+                              placeholder="Hỏi về nội dung môn học... (Enter để gửi, Shift+Enter xuống dòng)"
+                              rows="1"></textarea>
+                    <button id="btn-send" class="btn-send" onclick="sendMessage()">➤</button>
+                </div>
+            </div>
+        }
+        else
+        {
+            <div class="empty-chat">
+                <h3>Bắt đầu chat với AI</h3>
+                <p style="font-size:0.875rem;">Chọn cuộc trò chuyện hoặc tạo mới để hỏi đáp về tài liệu học tập</p>
+                <button class="btn btn-primary" onclick="showNewSessionModal()">+ Tạo chat mới</button>
+            </div>
+        }
+    </div>
+</div>
+
+<!-- New Session Modal -->
+<div id="modal-overlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:100; display:none; align-items:center; justify-content:center;">
+    <div style="background:#fff; border:1px solid #dee2e6; border-radius:6px; padding:1.5rem; width:100%; max-width:460px;">
+        <h3 style="margin-bottom:1rem; font-size:1rem;">Tạo cuộc trò chuyện mới</h3>
+        <form method="post" asp-page-handler="CreateSession">
+            @Html.AntiForgeryToken()
+            <div class="form-group">
+                <label class="form-label">Tiêu đề</label>
+                <input type="text" name="SessionTitle" class="form-control" value="Chat mới" required />
+            </div>
+            <div class="form-group">
+                <label class="form-label">Môn học</label>
+                <select name="SubjectId" class="form-control" required>
+                    @foreach (var s in Model.AvailableSubjects)
+                    {
+                        <option value="@s.SubjectId">@s.SubjectCode — @s.SubjectName</option>
+                    }
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">AI Model</label>
+                <select name="AiModelId" class="form-control" required>
+                    @foreach (var m in Model.AvailableAiModels)
+                    {
+                        <option value="@m.AiModelId">@m.ModelName (@m.Provider)</option>
+                    }
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Embedding Model</label>
+                <select name="EmbeddingModelId" class="form-control" required>
+                    @foreach (var m in Model.AvailableEmbeddingModels)
+                    {
+                        <option value="@m.EmbeddingModelId">@m.ModelName (@m.Provider)</option>
+                    }
+                </select>
+            </div>
+            <div style="display:flex; gap:0.5rem; justify-content:flex-end;">
+                <button type="button" class="btn btn-secondary" onclick="hideNewSessionModal()">Huỷ</button>
+                <button type="submit" class="btn btn-primary">Tạo</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+const sessionId = @(Model.CurrentSessionId?.ToString() ?? "null");
+const messagesContainer = document.getElementById('messages-container');
+
+// Auto-scroll to bottom
+if (messagesContainer) {
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+}
+
+// Enter to send (Shift+Enter for newline)
+const textarea = document.getElementById('chat-input');
+if (textarea) {
+    textarea.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            sendMessage();
+        }
+    });
+    textarea.addEventListener('input', function() {
+        this.style.height = 'auto';
+        this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+    });
+}
+
+async function sendMessage() {
+    if (!sessionId) return;
+    const question = textarea.value.trim();
+    if (!question) return;
+
+    // Show user message immediately
+    textarea.value = '';
+    textarea.style.height = 'auto';
+    document.getElementById('btn-send').disabled = true;
+    appendMessage('user', question);
+
+    // Show typing indicator
+    document.getElementById('typing-indicator').style.display = 'flex';
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
+    try {
+        // Razor Pages AJAX handler pattern: ?handler=HandlerName
+        const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value ?? '';
+        const resp = await fetch('/Chat?handler=SendMessage', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'RequestVerificationToken': token
+            },
+            body: JSON.stringify({ chatSessionId: sessionId, question })
+        });
+
+        const data = await resp.json();
+        document.getElementById('typing-indicator').style.display = 'none';
+
+        if (data.isError) {
+            appendMessage('assistant', data.errorMessage, [], true);
+        } else {
+            appendMessage('assistant', data.answer, data.citations, false, data.latencyMs);
+        }
+    } catch (err) {
+        document.getElementById('typing-indicator').style.display = 'none';
+        appendMessage('assistant', 'Lỗi kết nối. Vui lòng thử lại.', [], true);
+    }
+
+    document.getElementById('btn-send').disabled = false;
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+}
+
+function appendMessage(role, content, citations = [], isError = false, latencyMs = null) {
+    const div = document.createElement('div');
+    div.className = 'message ' + role;
+    const time = new Date().toLocaleTimeString('vi', { hour: '2-digit', minute: '2-digit' });
+    const latencyText = latencyMs ? ` · ${latencyMs} ms` : '';
+
+    let citationsHtml = '';
+    if (citations && citations.length > 0) {
+        citationsHtml = '<div class="citations">' +
+            citations.map(c => `<span class="citation-chip" title="${c.chunkText?.substring(0, 200) || ''}...">${c.documentName} (${(c.similarityScore * 100).toFixed(0)}%)</span>`).join('') +
+            '</div>';
+    }
+
+    div.innerHTML = `
+        <div class="message-bubble" style="${isError ? 'border-color:#f5c2c7; background-color:#f8d7da; color:#842029;' : ''}">${content.replace(/\n/g, '<br>')}</div>
+        <div class="message-meta">${time}${latencyText}</div>
+        ${citationsHtml}
+    `;
+    messagesContainer.insertBefore(div, document.getElementById('typing-indicator'));
+}
+
+const modalOverlay = document.getElementById('modal-overlay');
+function showNewSessionModal() { modalOverlay.style.display = 'flex'; }
+function hideNewSessionModal() { modalOverlay.style.display = 'none'; }
+modalOverlay.addEventListener('click', function(e) {
+    if (e.target === modalOverlay) hideNewSessionModal();
+});
+</script>
+}

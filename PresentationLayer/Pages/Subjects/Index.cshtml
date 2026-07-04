@@ -1,0 +1,226 @@
+@page
+@model PRN222_Assignment2.Pages.Subjects.IndexModel
+@{
+    ViewData["Title"] = "Môn học";
+    ViewData["ActivePage"] = ViewData["ActivePage"] ?? "Subjects";
+}
+
+<div class="page-header-row">
+    <h1 class="dashboard-title" style="margin-bottom:0;">QUẢN LÝ MÔN HỌC</h1>
+    @if (Model.IsAdmin)
+    {
+        <a href="/Subjects/Create" class="soft-btn btn-dark"><i class="bi bi-journal-plus"></i> THÊM MÔN HỌC</a>
+    }
+</div>
+
+@if (TempData["Success"] != null)
+{
+    <div class="alert alert-success">@TempData["Success"]</div>
+}
+
+<div class="brutalist-table-container">
+    <table class="brutalist-table">
+        <thead>
+            <tr>
+                <th style="width: 40px; text-align: center;">[x]</th>
+                <th>Mã Môn</th>
+                <th>Tên Môn Học</th>
+                <th>Số Chương</th>
+                <th>Tài Liệu</th>
+                <th>Hành Động</th>
+            </tr>
+        </thead>
+        <tbody id="subjects-table-body">
+            @foreach (var subject in Model.Subjects)
+            {
+                <tr id="subject-@subject.SubjectId" class="clickable" onclick="window.location='/Subjects/@subject.SubjectId'">
+                    <td style="text-align: center;" onclick="event.stopPropagation();"><input type="checkbox" style="cursor:pointer;" /></td>
+                    <td class="text-code">@subject.SubjectCode</td>
+                    <td style="font-weight: 600;" class="subject-name">@subject.SubjectName</td>
+                    <td class="subject-chapter-count">@subject.ChapterCount chương</td>
+                    <td class="subject-doc-count">@subject.DocumentCount tài liệu</td>
+                    <td onclick="event.stopPropagation();">
+                        <div style="display: flex; gap: 0.75rem; align-items:center;">
+                            @if (Model.IsAdmin || Model.IsTeacher)
+                            {
+                                <button type="button" class="btn-action btn-action-detail" title="@(Model.Filter == "mine" ? "Quản lý tài liệu" : "Xem chi tiết")" onclick="window.location='/Subjects/@subject.SubjectId'">
+                                    <i class="bi bi-folder2-open"></i> @(Model.Filter == "mine" ? "QUẢN LÝ TÀI LIỆU" : "XEM CHI TIẾT")
+                                </button>
+                            }
+                            @if (Model.IsAdmin)
+                            {
+                                <button type="button" class="btn-action btn-action-edit" title="Sửa" onclick="showEditSubjectModal(@subject.SubjectId, '@subject.SubjectCode', '@subject.SubjectName')">
+                                    <i class="bi bi-pencil"></i> SỬA
+                                </button>
+                            }
+                            @if (Model.IsAdmin)
+                            {
+                                <form method="post" asp-page-handler="Delete" style="display:inline;" onsubmit="return confirm('Bạn có chắc chắn muốn xóa môn học này?');">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="subjectId" value="@subject.SubjectId" />
+                                    <button type="submit" class="btn-action btn-action-delete" title="Xóa">
+                                        <i class="bi bi-trash"></i> XÓA
+                                    </button>
+                                </form>
+                            }
+                        </div>
+                    </td>
+                </tr>
+            }
+            @if (!Model.Subjects.Any())
+            {
+                <tr id="empty-row">
+                    <td colspan="6" style="text-align:center; padding: 2rem; color: #6c757d;">
+                        @if (Model.Filter == "mine")
+                        {
+                            <span>Bạn chưa được phân công phụ trách môn nào.</span>
+                        }
+                        else
+                        {
+                            <span>Chưa có môn học nào.</span>
+                        }
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+<!-- Edit Subject Modal -->
+<div id="edit-subject-modal" class="modal-overlay">
+    <div class="modal-content">
+        <h3 class="modal-title">CẬP NHẬT MÔN HỌC</h3>
+        <form method="post" asp-page-handler="Edit">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="EditSubjectId" id="editSubId" />
+            
+            <div class="form-group" style="margin-bottom:1rem;">
+                <label class="form-label" style="font-weight: 700;">Mã Môn</label>
+                <input type="text" name="EditSubjectCode" id="editSubCode" class="form-control" required />
+            </div>
+            
+            <div class="form-group" style="margin-bottom:1rem;">
+                <label class="form-label" style="font-weight: 700;">Tên Môn</label>
+                <input type="text" name="EditSubjectName" id="editSubName" class="form-control" required />
+            </div>
+
+            @if (Model.IsAdmin)
+            {
+                <div class="form-group" style="margin-bottom:1.5rem;">
+                    <label class="form-label" style="font-weight: 700;">Giảng viên phụ trách</label>
+                    <select name="EditTeacherId" id="editSubTeacher" class="form-control">
+                        <option value="">-- Chọn giảng viên --</option>
+                        @foreach (var teacher in Model.AllTeachers)
+                        {
+                            <option value="@teacher.UserId">@teacher.FullName (@teacher.Email)</option>
+                        }
+                    </select>
+                </div>
+            }
+
+            <div style="display:flex; justify-content:flex-end; gap:0.5rem;">
+                <button type="button" class="btn btn-secondary" onclick="hideEditSubjectModal()">Huỷ</button>
+                <button type="submit" class="soft-btn btn-dark"><i class="bi bi-floppy"></i> LƯU THAY ĐỔI</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.0/signalr.min.js"></script>
+    <script>
+        function showEditSubjectModal(id, code, name) {
+            document.getElementById('editSubId').value = id;
+            document.getElementById('editSubCode').value = code;
+            document.getElementById('editSubName').value = name;
+            document.getElementById('edit-subject-modal').classList.add('show');
+        }
+        function hideEditSubjectModal() { document.getElementById('edit-subject-modal').classList.remove('show'); }
+        document.getElementById('edit-subject-modal').addEventListener('click', function(e) { if (e.target === this) hideEditSubjectModal(); });
+
+        const connection = new signalR.HubConnectionBuilder()
+            .withUrl("/subjectHub")
+            .build();
+
+        connection.on("ReceiveSubjectUpdate", function (action, data) {
+            console.log("SignalR received:", action, data);
+            const tbody = document.getElementById("subjects-table-body");
+            
+            if (action === "create") {
+                const emptyRow = document.getElementById('empty-row');
+                if (emptyRow) emptyRow.remove();
+
+                const newRow = document.createElement("tr");
+                newRow.id = `subject-${data.subjectId}`;
+                
+                let adminHtml = '';
+                @if (User.IsInRole("Admin") || User.IsInRole("Teacher")) {
+                    <text>
+                    adminHtml += `
+                        <button type="button" class="btn-action btn-action-edit" title="Sửa" onclick="showEditSubjectModal(${data.subjectId}, '${data.subjectCode}', '${data.subjectName}')"><i class="bi bi-pencil"></i> SỬA</button>
+                    `;
+                    </text>
+                }
+                @if (User.IsInRole("Admin")) {
+                    <text>
+                    adminHtml += `
+                        <form method="post" action="/Subjects?handler=Delete" style="display:inline;" onsubmit="return confirm('Bạn có chắc chắn muốn xóa môn học này?');">
+                            <input name="__RequestVerificationToken" type="hidden" value="${document.querySelector('input[name=__RequestVerificationToken]')?.value || ''}">
+                            <input type="hidden" name="subjectId" value="${data.subjectId}" />
+                            <button type="submit" class="btn-action btn-action-delete" title="Xóa"><i class="bi bi-trash"></i> XÓA</button>
+                        </form>
+                    `;
+                    </text>
+                }
+                
+                newRow.innerHTML = `
+                    <td style="text-align: center;"><input type="checkbox" style="cursor:pointer;" /></td>
+                    <td class="text-code">${data.subjectCode}</td>
+                    <td style="font-weight: 600;" class="subject-name">${data.subjectName}</td>
+                    <td class="subject-chapter-count">${data.chapterCount} chương</td>
+                    <td class="subject-doc-count">${data.documentCount} tài liệu</td>
+                    <td>
+                        <div style="display: flex; gap: 0.5rem;">
+                            ${adminHtml}
+                            <a href="/Subjects/${data.subjectId}" class="btn-action btn-action-detail" title="Chi tiết"><i class="bi bi-folder2-open"></i> CHI TIẾT</a>
+                        </div>
+                    </td>
+                `;
+                tbody.appendChild(newRow);
+                newRow.style.transition = "background-color 0.5s";
+                newRow.style.backgroundColor = "#e8e8e8";
+                setTimeout(() => newRow.style.backgroundColor = "", 1000);
+            } 
+            else if (action === "update") {
+                const row = document.getElementById(`subject-${data.subjectId}`);
+                if (row) {
+                    row.querySelector('td:nth-child(2)').textContent = data.subjectCode;
+                    row.querySelector('.subject-name').textContent = data.subjectName;
+                    
+                    row.style.transition = "background-color 0.5s";
+                    row.style.backgroundColor = "#cfe2ff";
+                    setTimeout(() => row.style.backgroundColor = "", 1000);
+                }
+            } 
+            else if (action === "delete") {
+                const row = document.getElementById(`subject-${data}`);
+                if (row) {
+                    row.style.transition = "opacity 0.5s";
+                    row.style.opacity = "0";
+                    setTimeout(() => {
+                        row.remove();
+                        if (tbody.querySelectorAll('tr').length === 0) {
+                            tbody.innerHTML = `
+                                <tr id="empty-row"><td colspan="6" style="text-align:center; padding: 2rem; color: #6c757d;">Chưa có môn học nào. Hãy thêm môn học đầu tiên!</td></tr>
+                            `;
+                        }
+                    }, 500);
+                }
+            }
+        });
+
+        connection.start().catch(function (err) {
+            return console.error("SignalR Error:", err.toString());
+        });
+    </script>
+}

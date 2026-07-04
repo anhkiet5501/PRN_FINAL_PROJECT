@@ -1,0 +1,42 @@
+@page
+@model PRN222_Assignment2.Pages.Subjects.CreateModel
+@{
+    ViewData["Title"] = "Thêm môn học";
+    ViewData["ActivePage"] = "Subjects";
+}
+
+<h1 class="dashboard-title">THÊM MÔN HỌC</h1>
+<p class="page-subtitle"><a href="/Subjects" class="subject-back-link" style="margin-bottom:0;">← Quay lại danh sách</a></p>
+
+@if (TempData["Error"] != null)
+{
+    <div class="alert alert-error" style="margin-bottom:1rem;">
+        @TempData["Error"]
+    </div>
+}
+
+<div class="card" style="max-width: 600px;">
+    <form method="post">
+        @Html.AntiForgeryToken()
+        
+        <div class="form-group" style="margin-bottom:0.75rem;">
+            <label class="form-label">Mã môn học</label>
+            <input type="text" asp-for="SubjectDto.SubjectCode" class="form-control" required placeholder="Ví dụ: PRN222" />
+        </div>
+        
+        <div class="form-group" style="margin-bottom:0.75rem;">
+            <label class="form-label">Tên môn học</label>
+            <input type="text" asp-for="SubjectDto.SubjectName" class="form-control" required placeholder="Ví dụ: Lập trình C#" />
+        </div>
+        
+        <div class="form-group" style="margin-bottom:1rem;">
+            <label class="form-label">Mô tả (Tùy chọn)</label>
+            <textarea asp-for="SubjectDto.Description" class="form-control" rows="4" placeholder="Mô tả ngắn gọn về môn học..."></textarea>
+        </div>
+        
+        <div style="display:flex; gap:0.5rem;">
+            <button type="submit" class="btn btn-primary">Lưu môn học</button>
+            <a href="/Subjects" class="btn btn-outline">Hủy bỏ</a>
+        </div>
+    </form>
+</div>

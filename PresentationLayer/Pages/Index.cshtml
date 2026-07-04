@@ -1,0 +1,127 @@
+@page
+@model IndexModel
+@{
+    ViewData["Title"] = "Trang chủ";
+    ViewData["ActivePage"] = "Home";
+    var fullName = User.FindFirst("FullName")?.Value ?? User.Identity?.Name ?? "User";
+    var roleLabel = User.IsInRole("Admin") ? "Quản trị viên" : User.IsInRole("Teacher") ? "Giảng viên" : "Sinh viên";
+}
+
+<h1 class="welcome-heading">
+    Chào mừng đến với Ứng dụng Quản lý Học tập — EduManager!
+</h1>
+
+<div class="home-top-row">
+    <div class="info-card">
+        <h2 class="info-card-title">Thông tin cá nhân</h2>
+        <p class="info-card-line"><strong>@fullName</strong></p>
+        <p class="info-card-line">Vai trò: @roleLabel</p>
+        <p class="info-card-line">Tài khoản: <strong>@User.Identity?.Name</strong></p>
+    </div>
+
+    <div class="home-quick-col">
+        @if (User.IsInRole("Admin"))
+        {
+            <a href="/Subjects" class="utility-card utility-card--sm">
+                <span class="utility-icon utility-icon--blue"><i class="bi bi-grid-3x3-gap"></i></span>
+                <span class="utility-label">Quản lý môn học</span>
+            </a>
+        }
+        else
+        {
+            <a href="/Subjects" class="utility-card utility-card--sm">
+                <span class="utility-icon utility-icon--blue"><i class="bi bi-grid-3x3-gap"></i></span>
+                <span class="utility-label">Xem môn học</span>
+            </a>
+        }
+        <form method="post" action="/Auth/Logout" style="margin:0;">
+            @Html.AntiForgeryToken()
+            <button type="submit" class="utility-card utility-card--sm utility-card--btn">
+                <span class="utility-icon utility-icon--red"><i class="bi bi-box-arrow-right"></i></span>
+                <span class="utility-label">Đăng xuất</span>
+            </button>
+        </form>
+    </div>
+</div>
+
+@if (User.IsInRole("Admin"))
+{
+    <section class="home-section">
+        <h2 class="section-heading">Tiện ích quản lý hệ thống</h2>
+        <div class="utility-grid">
+            <a href="/Admin/Users" class="utility-card">
+                <span class="utility-icon utility-icon--blue"><i class="bi bi-info-circle"></i></span>
+                <span class="utility-label">Quản lý người dùng</span>
+            </a>
+            <a href="/Subjects" class="utility-card">
+                <span class="utility-icon utility-icon--amber"><i class="bi bi-journal-bookmark"></i></span>
+                <span class="utility-label">Quản lý môn học</span>
+            </a>
+            <a href="/Subjects/Create" class="utility-card">
+                <span class="utility-icon utility-icon--purple"><i class="bi bi-plus-circle"></i></span>
+                <span class="utility-label">Thêm môn học mới</span>
+            </a>
+        </div>
+    </section>
+
+    <section class="home-section">
+        <h2 class="section-heading">Thống kê nhanh</h2>
+        <div class="utility-grid">
+            <div class="utility-card utility-card--stat">
+                <span class="utility-icon utility-icon--green"><i class="bi bi-currency-dollar"></i></span>
+                <span class="utility-stat">0đ</span>
+                <span class="utility-label">Doanh thu (tháng)</span>
+            </div>
+            <div class="utility-card utility-card--stat">
+                <span class="utility-icon utility-icon--green"><i class="bi bi-people"></i></span>
+                <span class="utility-stat">3</span>
+                <span class="utility-label">Người dùng</span>
+            </div>
+            <div class="utility-card utility-card--stat">
+                <span class="utility-icon utility-icon--green"><i class="bi bi-journal-bookmark"></i></span>
+                <span class="utility-stat">2</span>
+                <span class="utility-label">Môn học</span>
+            </div>
+        </div>
+    </section>
+}
+else if (User.IsInRole("Teacher"))
+{
+    <section class="home-section">
+        <h2 class="section-heading">Tiện ích giảng dạy</h2>
+        <div class="utility-grid">
+            <a href="/Subjects?filter=mine" class="utility-card">
+                <span class="utility-icon utility-icon--blue"><i class="bi bi-person-workspace"></i></span>
+                <span class="utility-label">Môn phụ trách</span>
+            </a>
+            <a href="/Subjects?filter=all" class="utility-card">
+                <span class="utility-icon utility-icon--amber"><i class="bi bi-journal-bookmark"></i></span>
+                <span class="utility-label">Tất cả môn học</span>
+            </a>
+            <a href="/Profile" class="utility-card">
+                <span class="utility-icon utility-icon--purple"><i class="bi bi-person-gear"></i></span>
+                <span class="utility-label">Hồ sơ cá nhân</span>
+            </a>
+        </div>
+    </section>
+}
+else
+{
+    <section class="home-section">
+        <h2 class="section-heading">Tiện ích học tập</h2>
+        <div class="utility-grid">
+            <a href="/Subjects" class="utility-card">
+                <span class="utility-icon utility-icon--blue"><i class="bi bi-journal-bookmark"></i></span>
+                <span class="utility-label">Danh sách môn học</span>
+            </a>
+            <a href="/Profile" class="utility-card">
+                <span class="utility-icon utility-icon--amber"><i class="bi bi-person"></i></span>
+                <span class="utility-label">Thông tin sinh viên</span>
+            </a>
+            <a href="/Profile" class="utility-card">
+                <span class="utility-icon utility-icon--purple"><i class="bi bi-shield-lock"></i></span>
+                <span class="utility-label">Đổi mật khẩu</span>
+            </a>
+        </div>
+    </section>
+}

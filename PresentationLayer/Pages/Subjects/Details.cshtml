@@ -1,0 +1,448 @@
+@page "/Subjects/{id:int}"
+@model PRN222_Assignment2.Pages.Subjects.DetailsModel
+@{
+    ViewData["Title"] = Model.Subject?.SubjectName ?? "Chi tiết môn học";
+    ViewData["ActivePage"] = "Subjects";
+}
+
+@if (Model.Subject == null)
+{
+    <div class="alert alert-error">Môn học không tồn tại.</div>
+    return;
+}
+
+<!-- Page Header -->
+<a href="/Subjects" class="subject-back-link"><i class="bi bi-arrow-left"></i> Quay lại môn phụ trách</a>
+
+<div class="subject-header-row">
+    <div>
+        <h1 class="subject-title">[@Model.Subject.SubjectCode] @Model.Subject.SubjectName</h1>
+        <p class="subject-subtitle">Quản lý cấu trúc chương học và tài liệu</p>
+    </div>
+    <div class="subject-actions-row">
+        <a href="#" class="btn-history"><i class="bi bi-clock-history"></i> Lịch sử</a>
+        @if (Model.CanEdit)
+        {
+            <button class="btn-add-chapter" onclick="showCreateModal()"><i class="bi bi-plus-lg"></i> Thêm chương</button>
+            <button class="btn-upload" onclick="showUploadModal()"><i class="bi bi-upload"></i> Tải tài liệu</button>
+        }
+    </div>
+</div>
+
+@if (TempData["Success"] != null)
+{
+    <div class="alert alert-success" style="margin-bottom:1rem;">@TempData["Success"]</div>
+}
+@if (TempData["Error"] != null)
+{
+    <div class="alert alert-error" style="margin-bottom:1rem;">@TempData["Error"]</div>
+}
+
+<!-- Chapters -->
+@foreach (var ch in Model.Chapters.OrderBy(c => c.OrderIndex))
+{
+    <div class="chapter-card">
+        <!-- Chapter Header -->
+        <div class="chapter-header">
+            <h3 class="chapter-title">@ch.ChapterName</h3>
+            @if (Model.CanEdit)
+            {
+                <div class="chapter-actions">
+                    <button type="button" class="btn-edit-chapter" onclick="showEditModal(@ch.ChapterId, '@Html.Raw(System.Web.HttpUtility.JavaScriptStringEncode(ch.ChapterName))', @ch.OrderIndex)"><i class="bi bi-pencil"></i> Sửa</button>
+                    <form method="post" asp-page-handler="DeleteChapter" asp-route-id="@Model.Subject.SubjectId"
+                          onsubmit="return confirm('Bạn có chắc chắn muốn xóa chương này?');" style="margin:0;">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="chapterId" value="@ch.ChapterId" />
+                        <button type="submit" class="btn-delete-chapter"><i class="bi bi-trash"></i> Xóa</button>
+                    </form>
+                </div>
+            }
+        </div>
+
+        <hr class="chapter-divider" />
+
+        <!-- Documents -->
+        <div class="doc-list">
+            @foreach (var doc in ch.Documents.OrderByDescending(d => d.UploadedAt))
+            {
+                <div class="doc-item" data-doc-id="@doc.DocumentId" data-doc-status="@doc.Status">
+                    <div class="doc-info">
+                        <div class="doc-name">
+                            <span class="doc-badge">[@(doc.FileType?.ToUpper() ?? "FILE")]</span>
+                            @doc.OriginalFileName
+                        </div>
+                        <div class="doc-meta">
+                            <span><i class="bi bi-person"></i> Upload bởi: <strong>@doc.UploadedByFullName</strong></span>
+                            <span><i class="bi bi-clock"></i> @doc.UploadedAt.ToString("dd/MM/yyyy HH:mm")</span>
+                            <span class="doc-status doc-status--@doc.Status.ToLower()">@doc.Status@(doc.TotalChunks.HasValue && doc.Status == "Indexed" ? $" ({doc.TotalChunks} chunks)" : "")</span>
+                        </div>
+                        <div class="doc-inline-progress" id="doc-progress-@doc.DocumentId" hidden>
+                            <div class="doc-inline-progress-bar"><div class="doc-inline-progress-fill"></div></div>
+                            <span class="doc-inline-progress-text">Đang xử lý...</span>
+                        </div>
+                    </div>
+                    <div class="doc-actions">
+                        @if (doc.Status == "Indexed")
+                        {
+                            <a href="/Documents/Details/@doc.DocumentId" class="doc-action-chunk"><i class="bi bi-diagram-3"></i> Chunks (@doc.TotalChunks)</a>
+                        }
+                        else if (doc.Status == "Failed" && !string.IsNullOrEmpty(doc.ErrorMessage))
+                        {
+                            <span class="doc-error-hint" title="@doc.ErrorMessage"><i class="bi bi-exclamation-triangle"></i> Lỗi embed</span>
+                        }
+                        @if (Model.CanEdit)
+                        {
+                            <form method="post" asp-page-handler="Chunk" asp-route-id="@Model.Subject.SubjectId"
+                                  class="doc-chunk-form" style="margin:0;">
+                                @Html.AntiForgeryToken()
+                                <input type="hidden" name="documentId" value="@doc.DocumentId" />
+                                <button type="submit" class="doc-action-chunk"><i class="bi bi-arrow-repeat"></i> Chunk & Embed</button>
+                            </form>
+                            <form method="post" asp-page-handler="DeleteDoc" asp-route-id="@Model.Subject.SubjectId"
+                                  onsubmit="return confirm('Xóa tài liệu này?');" style="margin:0;">
+                                @Html.AntiForgeryToken()
+                                <input type="hidden" name="documentId" value="@doc.DocumentId" />
+                                <button type="submit" class="doc-action-delete"><i class="bi bi-trash"></i> Xóa</button>
+                            </form>
+                        }
+                    </div>
+                </div>
+            }
+            @if (!ch.Documents.Any())
+            {
+                <div class="empty-chapter">Chưa có tài liệu nào trong chương này.</div>
+            }
+        </div>
+    </div>
+}
+
+@if (!Model.Chapters.Any())
+{
+    <div class="empty-state-box">
+        <div style="font-size:2.5rem; margin-bottom:0.75rem;"><i class="bi bi-folder2"></i></div>
+        <div style="font-weight:900; text-transform:uppercase;">Chưa có chương học nào.</div>
+        @if (Model.CanEdit)
+        {
+            <button class="btn-add-chapter" style="margin-top:1rem;" onclick="showCreateModal()"><i class="bi bi-plus-lg"></i> Thêm chương đầu tiên</button>
+        }
+    </div>
+}
+
+@if (Model.CanEdit)
+{
+    <!-- Upload progress panel -->
+    <div id="upload-progress-panel" class="upload-progress-panel" hidden>
+        <div class="upload-progress-header">
+            <strong><i class="bi bi-hourglass-split"></i> Tiến trình xử lý tài liệu</strong>
+            <span id="upload-progress-file" class="upload-progress-file"></span>
+        </div>
+        <div class="upload-progress-steps">
+            <span class="progress-step" data-step="upload"><i class="bi bi-cloud-upload"></i> Upload</span>
+            <span class="progress-step" data-step="extract"><i class="bi bi-file-text"></i> Trích xuất</span>
+            <span class="progress-step" data-step="chunk"><i class="bi bi-scissors"></i> Chunk</span>
+            <span class="progress-step" data-step="embed"><i class="bi bi-cpu"></i> Embed</span>
+            <span class="progress-step" data-step="done"><i class="bi bi-check-circle"></i> Hoàn tất</span>
+        </div>
+        <div class="upload-progress-bar-wrap">
+            <div id="upload-progress-bar" class="upload-progress-bar"></div>
+        </div>
+        <div id="upload-progress-message" class="upload-progress-message">Đang chuẩn bị...</div>
+    </div>
+
+    <!-- Create Chapter Modal -->
+    <div id="create-modal" class="modal-overlay">
+        <div class="modal-content">
+            <h3 class="modal-title"><i class="bi bi-plus-lg"></i> Thêm chương học mới</h3>
+            <form method="post" asp-page-handler="CreateChapter" asp-route-id="@Model.Subject.SubjectId">
+                @Html.AntiForgeryToken()
+                <div class="form-group" style="margin-bottom:0.75rem;">
+                    <label class="form-label" style="font-weight:700;">Tên chương</label>
+                    <input type="text" asp-for="NewChapter.ChapterName" class="form-control" required placeholder="Ví dụ: Chương 1: Mở đầu" />
+                </div>
+                <div class="form-group" style="margin-bottom:0.75rem;">
+                    <label class="form-label" style="font-weight:700;">Số thứ tự</label>
+                    <input type="number" asp-for="NewChapter.OrderIndex" class="form-control" value="@(Model.Chapters.Count() + 1)" required />
+                </div>
+                <div class="form-group" style="margin-bottom:1.25rem;">
+                    <label class="form-label" style="font-weight:700;">Mô tả (tùy chọn)</label>
+                    <textarea asp-for="NewChapter.Description" class="form-control" rows="3"></textarea>
+                </div>
+                <div style="display:flex; gap:0.5rem; justify-content:flex-end;">
+                    <button type="button" class="btn btn-secondary" onclick="hideCreateModal()">Huỷ</button>
+                    <button type="submit" class="btn-add-chapter">Tạo mới</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Edit Chapter Modal -->
+    <div id="edit-modal" class="modal-overlay">
+        <div class="modal-content">
+            <h3 class="modal-title"><i class="bi bi-pencil"></i> Chỉnh sửa tên chương</h3>
+            <form method="post" asp-page-handler="EditChapter" asp-route-id="@Model.Subject.SubjectId">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="chapterId" id="edit-chapter-id" />
+                <input type="hidden" name="orderIndex" id="edit-chapter-order" />
+                <div class="form-group" style="margin-bottom:1.25rem;">
+                    <label class="form-label" style="font-weight:700;">Tên chương mới</label>
+                    <input type="text" name="chapterName" id="edit-chapter-name" class="form-control" required placeholder="Ví dụ: Chương 1: Mở đầu" />
+                </div>
+                <div style="display:flex; gap:0.5rem; justify-content:flex-end;">
+                    <button type="button" class="btn btn-secondary" onclick="hideEditModal()">Huỷ</button>
+                    <button type="submit" class="btn-add-chapter">Lưu thay đổi</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Upload Document Modal -->
+    <div id="upload-modal" class="modal-overlay">
+        <div class="modal-content">
+            <h3 class="modal-title"><i class="bi bi-upload"></i> Tải tài liệu lên</h3>
+            <form method="post" enctype="multipart/form-data" asp-page-handler="UploadDocument" asp-route-id="@Model.Subject.SubjectId" id="upload-form">
+                @Html.AntiForgeryToken()
+                <div class="form-group" style="margin-bottom:0.75rem;">
+                    <label class="form-label" style="font-weight:700;">Chương học</label>
+                    <select name="chapterId" class="form-control" required>
+                        <option value="">-- Chọn chương --</option>
+                        @foreach (var c in Model.Chapters.OrderBy(x => x.OrderIndex))
+                        {
+                            <option value="@c.ChapterId">@c.ChapterName</option>
+                        }
+                    </select>
+                </div>
+                <div class="form-group" style="margin-bottom:0.75rem;">
+                    <label class="form-label" style="font-weight:700;">File (.pdf, .docx, .txt)</label>
+                    <input type="file" name="uploadFile" class="form-control" accept=".pdf,.txt,.docx" required />
+                    <small class="form-hint">Sau khi upload, hệ thống tự động chunk & embed (có thể mất vài giây).</small>
+                </div>
+                <div class="form-group" style="margin-bottom:0.75rem;">
+                    <label class="form-label" style="font-weight:700;">Embedding Model</label>
+                    <select name="embeddingModelId" class="form-control" required>
+                        @foreach (var m in Model.EmbeddingModels.Where(x => x.IsActive))
+                        {
+                            if (m.IsDefault)
+                            {
+                                <option value="@m.EmbeddingModelId" selected>@m.ModelName (@m.Provider)</option>
+                            }
+                            else
+                            {
+                                <option value="@m.EmbeddingModelId">@m.ModelName (@m.Provider)</option>
+                            }
+                        }
+                    </select>
+                </div>
+                <div class="form-group" style="margin-bottom:1.25rem;">
+                    <label class="form-label" style="font-weight:700;">Chunking Strategy</label>
+                    <select name="chunkingStrategyId" class="form-control" required>
+                        @foreach (var s in Model.ChunkingStrategies)
+                        {
+                            if (s.IsDefault)
+                            {
+                                <option value="@s.ChunkingStrategyId" selected>@s.StrategyName — @s.ChunkSize từ/chunk, overlap @s.ChunkOverlap</option>
+                            }
+                            else
+                            {
+                                <option value="@s.ChunkingStrategyId">@s.StrategyName — @s.ChunkSize từ/chunk, overlap @s.ChunkOverlap</option>
+                            }
+                        }
+                    </select>
+                </div>
+                <div style="display:flex; justify-content:flex-end; gap:0.5rem;">
+                    <button type="button" class="btn btn-secondary" onclick="hideUploadModal()">Huỷ</button>
+                    <button type="submit" class="btn-upload"><i class="bi bi-lightning"></i> Upload & Chunk</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    @section Scripts {
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.0/signalr.min.js"></script>
+        <script>
+            const SUBJECT_ID = @Model.Subject.SubjectId;
+            let reloadScheduled = false;
+
+            function showCreateModal() { document.getElementById('create-modal').classList.add('show'); }
+            function hideCreateModal() { document.getElementById('create-modal').classList.remove('show'); }
+            document.getElementById('create-modal').addEventListener('click', function(e) { if (e.target === this) hideCreateModal(); });
+
+            function showUploadModal() { document.getElementById('upload-modal').classList.add('show'); }
+            function hideUploadModal() { document.getElementById('upload-modal').classList.remove('show'); }
+            document.getElementById('upload-modal').addEventListener('click', function(e) { if (e.target === this) hideUploadModal(); });
+
+            function showEditModal(chapterId, chapterName, orderIndex) {
+                document.getElementById('edit-chapter-id').value = chapterId;
+                document.getElementById('edit-chapter-name').value = chapterName;
+                document.getElementById('edit-chapter-order').value = orderIndex;
+                document.getElementById('edit-modal').classList.add('show');
+            }
+            function hideEditModal() { document.getElementById('edit-modal').classList.remove('show'); }
+            document.getElementById('edit-modal').addEventListener('click', function(e) { if (e.target === this) hideEditModal(); });
+
+            const progressPanel = document.getElementById('upload-progress-panel');
+            const progressBar = document.getElementById('upload-progress-bar');
+            const progressMessage = document.getElementById('upload-progress-message');
+            const progressFile = document.getElementById('upload-progress-file');
+
+            function showProgressPanel(fileName) {
+                progressPanel.hidden = false;
+                progressFile.textContent = fileName || '';
+                updateProgressUi({ percent: 5, message: 'Đang upload file...', step: 'upload' });
+            }
+
+            function hideProgressPanel(delayMs) {
+                setTimeout(() => { progressPanel.hidden = true; }, delayMs || 0);
+            }
+
+            function updateProgressUi(data) {
+                const percent = Math.max(0, Math.min(100, data.percent || 0));
+                progressBar.style.width = percent + '%';
+                progressMessage.textContent = data.message || '';
+
+                document.querySelectorAll('.progress-step').forEach(el => el.classList.remove('active', 'done'));
+                const order = ['upload', 'extract', 'chunk', 'embed', 'done'];
+                const stepMap = { processing: 'extract', failed: 'embed' };
+                const current = stepMap[data.step] || data.step || 'upload';
+                const currentIdx = order.indexOf(current);
+                order.forEach((step, idx) => {
+                    const el = document.querySelector('.progress-step[data-step="' + step + '"]');
+                    if (!el) return;
+                    if (idx < currentIdx || (current === 'done' && step === 'done')) el.classList.add('done');
+                    else if (step === current) el.classList.add('active');
+                });
+
+                if (data.documentId) {
+                    const inline = document.getElementById('doc-progress-' + data.documentId);
+                    if (inline) {
+                        inline.hidden = false;
+                        inline.querySelector('.doc-inline-progress-fill').style.width = percent + '%';
+                        inline.querySelector('.doc-inline-progress-text').textContent = data.message || '';
+                    }
+                }
+            }
+
+            function scheduleReload() {
+                if (reloadScheduled) return;
+                reloadScheduled = true;
+                setTimeout(() => location.reload(), 800);
+            }
+
+            const documentConnection = new signalR.HubConnectionBuilder()
+                .withUrl('/documentHub')
+                .withAutomaticReconnect()
+                .build();
+
+            documentConnection.on('ReceiveDocumentProgress', function (data) {
+                if (data.subjectId && data.subjectId !== SUBJECT_ID) return;
+                updateProgressUi(data);
+            });
+
+            documentConnection.on('ReceiveDocumentUpdate', function (action, payload) {
+                if (payload.status === 'Indexed' || payload.status === 'Failed') {
+                    scheduleReload();
+                }
+            });
+
+            documentConnection.start().catch(err => console.error('SignalR:', err));
+
+            function getAntiForgeryToken(form) {
+                return form.querySelector('input[name="__RequestVerificationToken"]')?.value;
+            }
+
+            async function postFormAjax(form) {
+                const formData = new FormData(form);
+                const token = getAntiForgeryToken(form);
+                const response = await fetch(form.action, {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'RequestVerificationToken': token
+                    }
+                });
+                return response.json();
+            }
+
+            const uploadForm = document.getElementById('upload-form');
+            if (uploadForm) {
+                uploadForm.addEventListener('submit', async function (e) {
+                    e.preventDefault();
+                    const fileInput = this.querySelector('input[type="file"]');
+                    const fileName = fileInput.files[0]?.name || 'Tài liệu';
+                    hideUploadModal();
+                    showProgressPanel(fileName);
+                    updateProgressUi({ percent: 8, message: 'Đang gửi file lên server...', step: 'upload' });
+
+                    const submitBtn = this.querySelector('button[type="submit"]');
+                    submitBtn.disabled = true;
+
+                    try {
+                        const result = await postFormAjax(this);
+                        if (result.success) {
+                            updateProgressUi({
+                                documentId: result.documentId,
+                                percent: 100,
+                                message: result.message,
+                                step: 'done'
+                            });
+                            hideProgressPanel(1500);
+                            scheduleReload();
+                        } else {
+                            updateProgressUi({
+                                documentId: result.documentId,
+                                percent: 100,
+                                message: result.message || 'Thất bại',
+                                step: 'failed'
+                            });
+                            progressMessage.style.color = '#dc2626';
+                            hideProgressPanel(3000);
+                            scheduleReload();
+                        }
+                    } catch (err) {
+                        updateProgressUi({ percent: 100, message: 'Lỗi upload: ' + err.message, step: 'failed' });
+                        progressMessage.style.color = '#dc2626';
+                    } finally {
+                        submitBtn.disabled = false;
+                    }
+                });
+            }
+
+            document.querySelectorAll('.doc-chunk-form').forEach(form => {
+                form.addEventListener('submit', async function (e) {
+                    e.preventDefault();
+                    const docId = this.querySelector('input[name="documentId"]')?.value;
+                    const docItem = this.closest('.doc-item');
+                    const fileName = docItem?.querySelector('.doc-name')?.textContent?.trim() || 'Tài liệu';
+
+                    showProgressPanel(fileName);
+                    updateProgressUi({ documentId: parseInt(docId), percent: 20, message: 'Đang chunk & embed lại...', step: 'processing' });
+
+                    const btn = this.querySelector('button[type="submit"]');
+                    btn.disabled = true;
+
+                    try {
+                        const result = await postFormAjax(this);
+                        updateProgressUi({
+                            documentId: result.documentId || parseInt(docId),
+                            percent: 100,
+                            message: result.message,
+                            step: result.success ? 'done' : 'failed'
+                        });
+                        hideProgressPanel(result.success ? 1200 : 3000);
+                        scheduleReload();
+                    } catch (err) {
+                        updateProgressUi({ percent: 100, message: 'Lỗi: ' + err.message, step: 'failed' });
+                    } finally {
+                        btn.disabled = false;
+                    }
+                });
+            });
+
+            document.querySelectorAll('[data-doc-status="Processing"], [data-doc-status="Pending"]').forEach(el => {
+                const docId = el.dataset.docId;
+                const inline = document.getElementById('doc-progress-' + docId);
+                if (inline) inline.hidden = false;
+            });
+        </script>
+    }
+}
