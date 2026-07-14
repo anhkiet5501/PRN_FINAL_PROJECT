@@ -3,111 +3,556 @@
 @{
     ViewData["Title"] = "Chi tiết Benchmark";
     ViewData["ActivePage"] = "Benchmark";
+    var avgF   = Model.Results.Any() ? Model.Results.Average(r => (double?)r.FaithfulnessScore) ?? 0 : 0;
+    var avgR   = Model.Results.Any() ? Model.Results.Average(r => (double?)r.RelevanceScore) ?? 0 : 0;
+    var avgLat = Model.Results.Any() ? Model.Results.Average(r => (double?)r.LatencyMs) ?? 0 : 0;
+    var passed = Model.Results.Count(r => (double)(r.FaithfulnessScore ?? 0) >= 0.6);
 }
 
-<div class="page-header">
-    <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:1rem;">
-        <div>
-            <h1>Kết quả Benchmark</h1>
-            <p>Chi tiết kết quả đánh giá (Faithfulness & Relevance)</p>
-        </div>
-        <a href="/Benchmark?subjectId=@Model.SubjectId" class="btn btn-secondary">← Trở về</a>
+<style>
+/* ═══════════════════════════════════════════════════════
+   BENCHMARK DETAILS — Detailed Result View
+   ═══════════════════════════════════════════════════════ */
+
+/* Header row */
+.bd-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+    margin-bottom: 1.5rem;
+}
+.bd-back-btn {
+    display: inline-flex; align-items: center; gap: 0.35rem;
+    padding: 0.45rem 0.9rem;
+    border-radius: 8px;
+    background: #f1f5f9;
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-size: 0.825rem;
+    font-weight: 600;
+    text-decoration: none;
+    transition: background 0.15s;
+    flex-shrink: 0;
+}
+.bd-back-btn:hover { background: #e2e8f0; color: var(--text); text-decoration: none; }
+
+/* KPI cards */
+.bd-kpi-row {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+.bd-kpi {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1rem 1.1rem;
+    box-shadow: var(--shadow);
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+}
+.bd-kpi::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0;
+    height: 3px;
+}
+.bd-kpi.faith::before { background: linear-gradient(90deg,#22c55e,#16a34a); }
+.bd-kpi.rel::before   { background: linear-gradient(90deg,#3b82f6,#1d4ed8); }
+.bd-kpi.lat::before   { background: linear-gradient(90deg,#f59e0b,#d97706); }
+.bd-kpi.pass::before  { background: linear-gradient(90deg,#8b5cf6,#7c3aed); }
+.bd-kpi.total::before { background: linear-gradient(90deg,#64748b,#475569); }
+
+.bd-kpi-val {
+    font-size: 1.75rem;
+    font-weight: 800;
+    line-height: 1;
+    margin-bottom: 0.3rem;
+}
+.bd-kpi.faith .bd-kpi-val { color: #16a34a; }
+.bd-kpi.rel   .bd-kpi-val { color: #1d4ed8; }
+.bd-kpi.lat   .bd-kpi-val { color: #d97706; }
+.bd-kpi.pass  .bd-kpi-val { color: #7c3aed; }
+.bd-kpi.total .bd-kpi-val { color: #475569; }
+.bd-kpi-label { font-size: 0.72rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px; }
+
+/* Charts row */
+.bd-charts-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+.bd-chart-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.1rem 1.25rem;
+    box-shadow: var(--shadow);
+}
+.bd-chart-title {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 0.85rem;
+    display: flex; align-items: center; gap: 0.4rem;
+}
+.bd-chart-title i { color: var(--accent); }
+.bd-chart-wrap { position: relative; height: 180px; }
+
+/* Test cases list */
+.tc-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    overflow: hidden;
+    margin-bottom: 1.25rem;
+}
+.tc-card-header {
+    padding: 0.9rem 1.25rem;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+.tc-card-header h3 { font-size: 0.9rem; font-weight: 700; }
+
+.tc-list { display: flex; flex-direction: column; }
+
+.tc-item {
+    border-bottom: 1px solid #f1f5f9;
+    padding: 1rem 1.25rem;
+    transition: background 0.12s;
+}
+.tc-item:last-child { border-bottom: none; }
+.tc-item:hover { background: #fafbfc; }
+
+.tc-question {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 0.75rem;
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+}
+.tc-q-badge {
+    background: #1e293b;
+    color: #fff;
+    border-radius: 4px;
+    padding: 0.1rem 0.45rem;
+    font-size: 0.68rem;
+    font-weight: 800;
+    flex-shrink: 0;
+    margin-top: 0.1rem;
+}
+
+.tc-answers {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+}
+.tc-ans-block {
+    border-radius: 8px;
+    padding: 0.65rem 0.85rem;
+    font-size: 0.82rem;
+    line-height: 1.55;
+}
+.tc-ans-block.expected {
+    background: #eff6ff;
+    border: 1px solid #bfdbfe;
+    color: #1e3a8a;
+}
+.tc-ans-block.generated {
+    background: #f8fafc;
+    border: 1px solid var(--border);
+    color: var(--text);
+}
+.tc-ans-block.error {
+    background: #fef2f2;
+    border: 1px solid #fca5a5;
+    color: #991b1b;
+}
+.tc-ans-label {
+    font-size: 0.68rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 0.35rem;
+    opacity: 0.7;
+}
+
+.tc-scores {
+    display: flex;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+    align-items: center;
+}
+.tc-score-chip {
+    display: inline-flex; align-items: center; gap: 0.3rem;
+    padding: 0.2rem 0.55rem;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 700;
+}
+.tc-score-chip.faith { background: #dcfce7; color: #166534; }
+.tc-score-chip.rel   { background: #dbeafe; color: #1e40af; }
+.tc-score-chip.lat   { background: #fef9c3; color: #92400e; }
+.tc-score-chip.err   { background: #fee2e2; color: #991b1b; }
+
+/* Gauge ring (CSS only) */
+.gauge-wrap { display: flex; align-items: center; justify-content: center; padding: 0.5rem; }
+.gauge-ring {
+    width: 90px; height: 90px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    flex-direction: column;
+    position: relative;
+}
+.gauge-ring svg {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    transform: rotate(-90deg);
+}
+.gauge-ring circle {
+    fill: none;
+    stroke-width: 8;
+    stroke-linecap: round;
+}
+.gauge-ring .track { stroke: #e2e8f0; }
+.gauge-ring .fill  { transition: stroke-dashoffset 0.8s ease; }
+.gauge-text { position: relative; z-index: 1; text-align: center; }
+.gauge-pct  { font-size: 1rem; font-weight: 800; line-height: 1; }
+.gauge-lbl  { font-size: 0.6rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase; }
+
+/* Add test case form */
+.add-tc-form {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.25rem;
+    box-shadow: var(--shadow);
+}
+.add-tc-form h3 { font-size: 0.9rem; font-weight: 700; margin-bottom: 1rem; }
+
+/* Pass/Fail badge on item */
+.tc-pass  { color: #16a34a; font-size: 0.7rem; font-weight: 700; }
+.tc-fail  { color: #dc2626; font-size: 0.7rem; font-weight: 700; }
+</style>
+
+<!-- Header -->
+<div class="bd-header">
+    <div>
+        <h1 class="dashboard-title" style="margin-bottom:0.25rem;">KẾT QUẢ BENCHMARK</h1>
+        <p class="page-subtitle" style="margin-bottom:0;">Chi tiết đánh giá Faithfulness &amp; Relevance</p>
+    </div>
+    <a href="/Benchmark?subjectId=@Model.SubjectId" class="bd-back-btn">
+        <i class="bi bi-arrow-left"></i> Trở về
+    </a>
+</div>
+
+<!-- KPI Cards -->
+<div class="bd-kpi-row">
+    <div class="bd-kpi faith">
+        <div class="bd-kpi-val">@avgF.ToString("P0")</div>
+        <div class="bd-kpi-label">Faithfulness TB</div>
+    </div>
+    <div class="bd-kpi rel">
+        <div class="bd-kpi-val">@avgR.ToString("P0")</div>
+        <div class="bd-kpi-label">Relevance TB</div>
+    </div>
+    <div class="bd-kpi lat">
+        <div class="bd-kpi-val">@avgLat.ToString("F0")</div>
+        <div class="bd-kpi-label" style="font-size:0.65rem;">Latency TB (ms)</div>
+    </div>
+    <div class="bd-kpi pass">
+        <div class="bd-kpi-val">@passed / @Model.Results.Count()</div>
+        <div class="bd-kpi-label">Passed ≥60%</div>
+    </div>
+    <div class="bd-kpi total">
+        <div class="bd-kpi-val">@Model.Results.Count()</div>
+        <div class="bd-kpi-label">Test Cases</div>
     </div>
 </div>
 
-<div class="grid-2">
-    <div class="card">
-        <h3 style="margin-bottom:0.75rem;">Tóm tắt Kết quả</h3>
+<!-- Charts Row -->
+@if (Model.Results.Any())
+{
+    <div class="bd-charts-row">
+        <!-- Faithfulness per test case -->
+        <div class="bd-chart-card">
+            <div class="bd-chart-title">
+                <i class="bi bi-bar-chart-fill"></i>
+                Faithfulness theo Test Case
+            </div>
+            <div class="bd-chart-wrap">
+                <canvas id="faithChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Scatter: Faith vs Relevance -->
+        <div class="bd-chart-card">
+            <div class="bd-chart-title">
+                <i class="bi bi-diagram-3-fill"></i>
+                Faithfulness vs Relevance
+            </div>
+            <div class="bd-chart-wrap">
+                <canvas id="scatterChart"></canvas>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Test Cases List -->
+<div class="tc-card">
+    <div class="tc-card-header">
+        <h3><i class="bi bi-list-check" style="color:var(--accent); margin-right:0.35rem;"></i>Chi tiết Test Cases</h3>
         @if (Model.Results.Any())
         {
-            var avgF = Model.Results.Average(r => (double?)r.FaithfulnessScore) ?? 0;
-            var avgR = Model.Results.Average(r => (double?)r.RelevanceScore) ?? 0;
-            var avgLat = Model.Results.Average(r => (double?)r.LatencyMs) ?? 0;
-            <div style="display:flex; gap:2rem;">
-                <div>
-                    <div style="color:#6c757d; font-size:0.8rem;">Faithfulness</div>
-                    <div style="font-size:1.75rem; font-weight:700; color:#198754;">@avgF.ToString("P1")</div>
-                </div>
-                <div>
-                    <div style="color:#6c757d; font-size:0.8rem;">Relevance</div>
-                    <div style="font-size:1.75rem; font-weight:700; color:#0d6efd;">@avgR.ToString("P1")</div>
-                </div>
-                <div>
-                    <div style="color:#6c757d; font-size:0.8rem;">Avg Latency</div>
-                    <div style="font-size:1.75rem; font-weight:700; color:#333;">@avgLat.ToString("F0") ms</div>
-                </div>
-            </div>
-        }
-        else
-        {
-            <p style="color:#6c757d;">Experiment chưa được chạy hoặc không có dữ liệu.</p>
+            <span style="font-size:0.75rem; color:var(--text-muted);">@Model.Results.Count() kết quả</span>
         }
     </div>
-</div>
 
-<h3 style="margin-top:1.5rem; margin-bottom:0.75rem;">Chi tiết Test Cases</h3>
-<div style="display:flex; flex-direction:column; gap:0.75rem;">
-    @foreach (var result in Model.Results)
-    {
-        <div class="card" style="margin-bottom:0;">
-            <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem;">
-                <div>
-                    <div style="font-weight:600; color:#6c757d; margin-bottom:0.35rem; font-size:0.8rem;">Q: @result.Question</div>
-                    <div style="font-size:0.875rem; color:#084298; background-color:#cfe2ff; padding:0.6rem; border-radius:4px; border:1px solid #b6d4fe;">
-                        <strong>Expected:</strong><br/> @result.ExpectedAnswer
+    <div class="tc-list">
+        @if (!Model.Results.Any())
+        {
+            <div style="text-align:center; padding:3rem; color:var(--text-muted);">
+                <i class="bi bi-clipboard-x" style="font-size:2rem; display:block; margin-bottom:0.75rem; opacity:0.35;"></i>
+                <div style="font-weight:600;">Chưa có kết quả</div>
+                <div style="font-size:0.8rem; margin-top:0.3rem;">Thêm Test Case và nhấn Run để bắt đầu đánh giá.</div>
+            </div>
+        }
+        @{int tcIdx = 0;}
+        @foreach (var result in Model.Results)
+        {
+            tcIdx++;
+            var faithVal   = (double)(result.FaithfulnessScore ?? 0);
+            var relVal     = (double)(result.RelevanceScore ?? 0);
+            var isPassed   = faithVal >= 0.6;
+            <div class="tc-item">
+                <div class="tc-question">
+                    <span class="tc-q-badge">Q@tcIdx</span>
+                    <span>@result.Question</span>
+                    @if (isPassed)
+                    { <span class="tc-pass" style="margin-left:auto;"><i class="bi bi-check-circle-fill"></i> Pass</span> }
+                    else if (result.FaithfulnessScore.HasValue)
+                    { <span class="tc-fail" style="margin-left:auto;"><i class="bi bi-x-circle-fill"></i> Fail</span> }
+                </div>
+
+                <div class="tc-answers">
+                    <div class="tc-ans-block expected">
+                        <div class="tc-ans-label"><i class="bi bi-bookmark-check"></i> Expected</div>
+                        @result.ExpectedAnswer
+                    </div>
+                    <div class="tc-ans-block @(!string.IsNullOrEmpty(result.ErrorMessage) ? "error" : "generated")">
+                        <div class="tc-ans-label"><i class="bi bi-stars"></i> AI Generated</div>
+                        @if (!string.IsNullOrEmpty(result.ErrorMessage))
+                        {
+                            <span><i class="bi bi-exclamation-circle-fill"></i> @result.ErrorMessage</span>
+                        }
+                        else
+                        {
+                            @result.GeneratedAnswer
+                        }
                     </div>
                 </div>
-                <div>
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.35rem;">
-                        <div style="font-size:0.8rem; font-weight:600; color:#6c757d;">AI Generated Answer</div>
-                        <div style="display:flex; gap:0.5rem; font-size:0.75rem;">
-                            <span style="color:#198754;">F: @(result.FaithfulnessScore?.ToString("P1") ?? "-")</span>
-                            <span style="color:#0d6efd;">R: @(result.RelevanceScore?.ToString("P1") ?? "-")</span>
-                            <span style="color:#6c757d;">@result.LatencyMs ms</span>
-                        </div>
-                    </div>
-                    
+
+                <div class="tc-scores">
+                    @if (result.FaithfulnessScore.HasValue)
+                    {
+                        <span class="tc-score-chip faith">
+                            <i class="bi bi-heart-pulse"></i> F: @result.FaithfulnessScore.Value.ToString("P0")
+                        </span>
+                    }
+                    @if (result.RelevanceScore.HasValue)
+                    {
+                        <span class="tc-score-chip rel">
+                            <i class="bi bi-bullseye"></i> R: @result.RelevanceScore.Value.ToString("P0")
+                        </span>
+                    }
+                    @if (result.LatencyMs.HasValue)
+                    {
+                        <span class="tc-score-chip lat">
+                            <i class="bi bi-speedometer2"></i> @result.LatencyMs ms
+                        </span>
+                    }
                     @if (!string.IsNullOrEmpty(result.ErrorMessage))
                     {
-                        <div style="font-size:0.875rem; color:#842029; background-color:#f8d7da; padding:0.6rem; border-radius:4px; border:1px solid #f5c2c7;">
-                            <strong>Lỗi:</strong> @result.ErrorMessage
-                        </div>
-                    }
-                    else
-                    {
-                        <div style="font-size:0.875rem; background-color:#f8f9fa; padding:0.6rem; border-radius:4px; border:1px solid #dee2e6;">
-                            @result.GeneratedAnswer
-                        </div>
+                        <span class="tc-score-chip err">
+                            <i class="bi bi-exclamation-triangle-fill"></i> Error
+                        </span>
                     }
                 </div>
             </div>
-        </div>
-    }
-    @if (!Model.Results.Any())
-    {
-        <div class="card" style="text-align:center; padding:2rem; color:#6c757d;">
-            Chưa có kết quả. Bạn cần thêm Test Case và chạy (Run) Experiment.
-        </div>
-    }
+        }
+    </div>
 </div>
 
 <!-- Add Test Case -->
-<div class="card" style="margin-top:1.5rem;">
-    <h3 style="margin-bottom:0.75rem;">+ Thêm Test Case Mới</h3>
+<div class="add-tc-form">
+    <h3><i class="bi bi-plus-circle" style="color:var(--accent); margin-right:0.4rem;"></i>Thêm Test Case Mới</h3>
     <form method="post" asp-page-handler="AddTestCase">
         @Html.AntiForgeryToken()
-        <div class="grid-2">
-            <div class="form-group">
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem;">
+            <div class="form-group" style="margin-bottom:0;">
                 <label class="form-label">Câu hỏi (Question)</label>
-                <textarea name="TestCaseInput.Question" class="form-control" rows="3" required></textarea>
+                <textarea name="TestCaseInput.Question" class="form-control" rows="3"
+                          placeholder="Nhập câu hỏi đánh giá..." required></textarea>
             </div>
-            <div class="form-group">
+            <div class="form-group" style="margin-bottom:0;">
                 <label class="form-label">Câu trả lời mẫu (Expected Answer)</label>
-                <textarea name="TestCaseInput.ExpectedAnswer" class="form-control" rows="3" required></textarea>
+                <textarea name="TestCaseInput.ExpectedAnswer" class="form-control" rows="3"
+                          placeholder="Nhập đáp án chuẩn (ground truth)..." required></textarea>
             </div>
         </div>
-        <div style="display:flex; justify-content:flex-end;">
-            <button type="submit" class="btn btn-primary">+ Thêm</button>
+        <div style="display:flex; justify-content:flex-end; margin-top:0.85rem;">
+            <button type="submit" class="btn btn-primary">
+                <i class="bi bi-plus-lg"></i> Thêm Test Case
+            </button>
         </div>
     </form>
 </div>
+
+@section Scripts {
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+(function () {
+    const results = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(
+        Model.Results.Select((r, i) => new {
+            label = $"Q{i+1}",
+            faith = (double)(r.FaithfulnessScore ?? 0),
+            rel   = (double)(r.RelevanceScore ?? 0),
+            lat   = r.LatencyMs ?? 0
+        }).ToList()
+    ));
+
+    if (!results || results.length === 0) return;
+
+    const chartDefaults = {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: { display: false },
+            tooltip: {
+                backgroundColor: '#1e293b',
+                titleColor: '#e2e8f0',
+                bodyColor: '#94a3b8',
+                padding: 10
+            }
+        }
+    };
+
+    // ── Faithfulness per test case (Bar) ─────────────────────────
+    const faithCtx = document.getElementById('faithChart');
+    if (faithCtx) {
+        const colors = results.map(r => r.faith >= 0.6
+            ? 'rgba(34,197,94,0.75)'
+            : 'rgba(239,68,68,0.65)');
+        const borders = results.map(r => r.faith >= 0.6 ? '#16a34a' : '#dc2626');
+
+        new Chart(faithCtx, {
+            type: 'bar',
+            data: {
+                labels: results.map(r => r.label),
+                datasets: [{
+                    data: results.map(r => +(r.faith * 100).toFixed(1)),
+                    backgroundColor: colors,
+                    borderColor: borders,
+                    borderWidth: 1.5,
+                    borderRadius: 5,
+                    borderSkipped: false,
+                }]
+            },
+            options: {
+                ...chartDefaults,
+                plugins: {
+                    ...chartDefaults.plugins,
+                    annotation: {}
+                },
+                scales: {
+                    x: {
+                        grid: { display: false },
+                        ticks: { font: { size: 10 }, color: '#64748b' }
+                    },
+                    y: {
+                        beginAtZero: true, max: 100,
+                        grid: { color: '#f1f5f9' },
+                        ticks: {
+                            font: { size: 10 }, color: '#94a3b8',
+                            callback: v => v + '%'
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    // ── Scatter: Faith vs Relevance ──────────────────────────────
+    const scatterCtx = document.getElementById('scatterChart');
+    if (scatterCtx) {
+        new Chart(scatterCtx, {
+            type: 'scatter',
+            data: {
+                datasets: [{
+                    label: 'Test Cases',
+                    data: results.map(r => ({
+                        x: +(r.faith * 100).toFixed(1),
+                        y: +(r.rel * 100).toFixed(1),
+                        label: r.label
+                    })),
+                    backgroundColor: 'rgba(99, 102, 241, 0.65)',
+                    borderColor: '#4f46e5',
+                    pointRadius: 7,
+                    pointHoverRadius: 9,
+                }]
+            },
+            options: {
+                ...chartDefaults,
+                plugins: {
+                    ...chartDefaults.plugins,
+                    tooltip: {
+                        ...chartDefaults.plugins.tooltip,
+                        callbacks: {
+                            label: ctx => {
+                                const d = ctx.raw;
+                                return ` ${d.label}: F=${d.x}%, R=${d.y}%`;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        min: 0, max: 100,
+                        title: {
+                            display: true,
+                            text: 'Faithfulness (%)',
+                            font: { size: 10, weight: '600' },
+                            color: '#64748b'
+                        },
+                        grid: { color: '#f1f5f9' },
+                        ticks: { font: { size: 10 }, color: '#94a3b8', callback: v => v + '%' }
+                    },
+                    y: {
+                        min: 0, max: 100,
+                        title: {
+                            display: true,
+                            text: 'Relevance (%)',
+                            font: { size: 10, weight: '600' },
+                            color: '#64748b'
+                        },
+                        grid: { color: '#f1f5f9' },
+                        ticks: { font: { size: 10 }, color: '#94a3b8', callback: v => v + '%' }
+                    }
+                }
+            }
+        });
+    }
+})();
+</script>
+}

@@ -10,7 +10,7 @@ using PRN222_Assignment2.Hubs;
 using PRN222_Assignment2.Services;
 using DotNetEnv;
 
-// ── Load .env file ────────────────────────────────────────────────────
+// ── Load .env file (chỉ dùng cho API keys) ───────────────────────────
 var envCandidates = new[]
 {
     Path.Combine(Directory.GetCurrentDirectory(), ".env"),
@@ -30,20 +30,10 @@ foreach (var envPath in envCandidates)
 
 var builder = WebApplication.CreateBuilder(args);
 
-// ── Database — đọc từ env vars (.env hoặc environment) ───────────────
-var dbServer   = Environment.GetEnvironmentVariable("DB_SERVER")   ?? "localhost,1433";
-var dbName     = Environment.GetEnvironmentVariable("DB_NAME")     ?? "RagLmsDb";
-var dbPassword = Environment.GetEnvironmentVariable("DB_SA_PASSWORD")
-    ?? throw new InvalidOperationException(
-        "DB_SA_PASSWORD chưa được cấu hình. Hãy thêm vào file .env");
-
-var connectionString =
-    $"Server={dbServer};Database={dbName};User Id=sa;Password={dbPassword};" +
-    "MultipleActiveResultSets=true;TrustServerCertificate=True";
-
+// ── Database — đọc từ appsettings.json (Code First) ──────────────────
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlServer(
-        connectionString,
+        builder.Configuration.GetConnectionString("DefaultConnection"),
         sqlOptions => sqlOptions.EnableRetryOnFailure(
             maxRetryCount: 3,
             maxRetryDelay: TimeSpan.FromSeconds(5),
@@ -71,7 +61,7 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy("TeacherOrAdmin", policy => policy.RequireRole("Admin", "Teacher"));
 });
 
-// ── API Keys Settings — đọc từ env vars (.env hoặc environment) ──────
+// ── API Keys Settings — đọc từ .env (ưu tiên) hoặc appsettings.json ──
 var apiKeys = new ApiKeysSettings
 {
     Gemini        = Environment.GetEnvironmentVariable("GEMINI_API_KEY")

@@ -5,6 +5,208 @@
     ViewData["ActivePage"] = "Benchmark";
 }
 
+<style>
+/* ═══════════════════════════════════════════════════════
+   BENCHMARK INDEX — Experiment Dashboard
+   ═══════════════════════════════════════════════════════ */
+
+/* Stats row */
+.bm-stats-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+.bm-stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1rem 1.25rem;
+    box-shadow: var(--shadow);
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+}
+.bm-stat-icon {
+    width: 40px; height: 40px;
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.1rem;
+    flex-shrink: 0;
+}
+.bm-stat-icon.blue   { background: #eff6ff; color: #2563eb; }
+.bm-stat-icon.green  { background: #f0fdf4; color: #16a34a; }
+.bm-stat-icon.purple { background: #faf5ff; color: #7c3aed; }
+.bm-stat-icon.amber  { background: #fffbeb; color: #d97706; }
+.bm-stat-value { font-size: 1.5rem; font-weight: 800; color: var(--text); line-height: 1; }
+.bm-stat-label { font-size: 0.72rem; color: var(--text-muted); font-weight: 500; margin-top: 0.2rem; }
+
+/* Filter bar */
+.bm-filter-bar {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1rem 1.25rem;
+    margin-bottom: 1.25rem;
+    display: flex;
+    gap: 0.75rem;
+    align-items: flex-end;
+    box-shadow: var(--shadow);
+}
+.bm-filter-bar .form-group { margin-bottom: 0; flex: 1; }
+
+/* Chart card */
+.bm-chart-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.25rem 1.5rem;
+    box-shadow: var(--shadow);
+    margin-bottom: 1.25rem;
+}
+.bm-chart-title {
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+.bm-chart-title i { color: var(--accent); }
+.bm-chart-wrap {
+    position: relative;
+    height: 220px;
+}
+
+/* Experiment table */
+.bm-table-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    overflow: hidden;
+}
+.bm-table-header {
+    padding: 0.9rem 1.25rem;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+.bm-table-header h3 { font-size: 0.9rem; font-weight: 700; }
+
+.bm-table { width: 100%; border-collapse: collapse; }
+.bm-table thead tr {
+    background: #f8fafc;
+}
+.bm-table th {
+    padding: 0.7rem 1rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--border);
+    text-align: left;
+    white-space: nowrap;
+}
+.bm-table td {
+    padding: 0.85rem 1rem;
+    border-bottom: 1px solid #f1f5f9;
+    vertical-align: middle;
+    font-size: 0.875rem;
+}
+.bm-table tbody tr:hover { background: #f8fafc; }
+.bm-table tbody tr:last-child td { border-bottom: none; }
+
+/* Score bar */
+.score-bar-wrap { display: flex; align-items: center; gap: 0.5rem; }
+.score-bar {
+    flex: 1;
+    height: 6px;
+    background: #e2e8f0;
+    border-radius: 999px;
+    overflow: hidden;
+    min-width: 60px;
+}
+.score-bar-fill {
+    height: 100%;
+    border-radius: 999px;
+    transition: width 0.6s ease;
+}
+.score-bar-fill.faith { background: linear-gradient(90deg, #22c55e, #16a34a); }
+.score-bar-fill.rel   { background: linear-gradient(90deg, #3b82f6, #1d4ed8); }
+.score-val { font-size: 0.75rem; font-weight: 700; min-width: 36px; }
+.score-val.faith { color: #16a34a; }
+.score-val.rel   { color: #1d4ed8; }
+
+/* Status badges */
+.status-pill {
+    display: inline-flex; align-items: center; gap: 0.35rem;
+    padding: 0.2rem 0.65rem;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+.status-pill.completed { background: #dcfce7; color: #166534; }
+.status-pill.running   { background: #dbeafe; color: #1e40af; }
+.status-pill.failed    { background: #fee2e2; color: #991b1b; }
+.status-pill.pending   { background: #fef9c3; color: #92400e; }
+.status-pill .pulse-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: currentColor;
+    animation: pulseDot 1.2s infinite;
+}
+@@keyframes pulseDot {
+    0%, 100% { opacity: 0.4; transform: scale(0.8); }
+    50%       { opacity: 1;   transform: scale(1.2); }
+}
+
+/* Action buttons */
+.bm-actions { display: flex; gap: 0.35rem; }
+.bm-btn {
+    display: inline-flex; align-items: center; gap: 0.3rem;
+    padding: 0.35rem 0.7rem;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.15s;
+    border: 1.5px solid transparent;
+    text-decoration: none;
+}
+.bm-btn-run {
+    background: #dcfce7; color: #166534;
+    border-color: #bbf7d0;
+}
+.bm-btn-run:hover { background: #bbf7d0; color: #14532d; }
+.bm-btn-detail {
+    background: #f1f5f9; color: var(--text);
+    border-color: var(--border);
+}
+.bm-btn-detail:hover { background: #e2e8f0; color: var(--text); text-decoration: none; }
+
+/* Empty state */
+.bm-empty {
+    text-align: center;
+    padding: 3rem 2rem;
+    color: var(--text-muted);
+}
+.bm-empty i { font-size: 2.5rem; display: block; margin-bottom: 0.75rem; opacity: 0.4; }
+.bm-empty h4 { font-size: 0.95rem; font-weight: 600; margin-bottom: 0.4rem; }
+.bm-empty p { font-size: 0.82rem; }
+
+/* Legend */
+.chart-legend { display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 0.75rem; }
+.legend-item { display: flex; align-items: center; gap: 0.35rem; font-size: 0.75rem; font-weight: 600; color: var(--text-muted); }
+.legend-dot { width: 10px; height: 10px; border-radius: 2px; }
+</style>
+
+<!-- Header -->
 <div class="page-header-row">
     <div>
         <h1 class="dashboard-title" style="margin-bottom:0.25rem;">BENCHMARK RAG</h1>
@@ -12,46 +214,126 @@
     </div>
     @if (User.IsInRole("Admin") || User.IsInRole("Teacher"))
     {
-        <a href="/Benchmark/Create" class="soft-btn btn-dark"><i class="bi bi-plus-lg"></i> Tạo Experiment mới</a>
+        <a href="/Benchmark/Create" class="soft-btn btn-dark">
+            <i class="bi bi-plus-lg"></i> Tạo Experiment mới
+        </a>
     }
 </div>
 
-<div class="card" style="margin-bottom:1rem;">
-    <form method="get" style="display:flex; gap:0.75rem; align-items:flex-end;">
-        <div style="flex:1;">
-            <label class="form-label">Chọn Môn học</label>
+<!-- Stats Row (only when subject selected) -->
+@if (Model.SelectedSubjectId.HasValue && Model.Experiments.Any())
+{
+    var total       = Model.Experiments.Count();
+    var completed   = Model.Experiments.Count(e => e.Status == "Completed");
+    var running     = Model.Experiments.Count(e => e.Status == "Running");
+    var pending     = Model.Experiments.Count(e => e.Status == "Pending");
+    var avgFaith    = Model.Experiments.Where(e => e.AvgFaithfulness.HasValue)
+                          .Select(e => e.AvgFaithfulness!.Value).DefaultIfEmpty(0).Average();
+    var avgRel      = Model.Experiments.Where(e => e.AvgRelevance.HasValue)
+                          .Select(e => e.AvgRelevance!.Value).DefaultIfEmpty(0).Average();
+
+    <div class="bm-stats-row">
+        <div class="bm-stat-card">
+            <div class="bm-stat-icon blue"><i class="bi bi-grid-3x3-gap-fill"></i></div>
+            <div>
+                <div class="bm-stat-value">@total</div>
+                <div class="bm-stat-label">Tổng Experiments</div>
+            </div>
+        </div>
+        <div class="bm-stat-card">
+            <div class="bm-stat-icon green"><i class="bi bi-check-circle-fill"></i></div>
+            <div>
+                <div class="bm-stat-value" style="color:#16a34a;">@completed</div>
+                <div class="bm-stat-label">Đã hoàn thành</div>
+            </div>
+        </div>
+        <div class="bm-stat-card">
+            <div class="bm-stat-icon purple"><i class="bi bi-heart-pulse-fill"></i></div>
+            <div>
+                <div class="bm-stat-value" style="color:#7c3aed;">@avgFaith.ToString("P0")</div>
+                <div class="bm-stat-label">Faithfulness TB</div>
+            </div>
+        </div>
+        <div class="bm-stat-card">
+            <div class="bm-stat-icon amber"><i class="bi bi-bullseye"></i></div>
+            <div>
+                <div class="bm-stat-value" style="color:#d97706;">@avgRel.ToString("P0")</div>
+                <div class="bm-stat-label">Relevance TB</div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Filter bar -->
+<div class="bm-filter-bar">
+    <form method="get" style="display:flex; gap:0.75rem; align-items:flex-end; width:100%;">
+        <div class="form-group" style="flex:1; margin-bottom:0;">
+            <label class="form-label">Môn học</label>
             <select name="subjectId" class="form-control" onchange="this.form.submit()">
                 <option value="">-- Chọn môn học --</option>
                 @foreach (var s in Model.Subjects)
                 {
                     if (Model.SelectedSubjectId == s.SubjectId)
                     {
-                        <option value="@s.SubjectId" selected>@s.SubjectCode - @s.SubjectName</option>
+                        <option value="@s.SubjectId" selected>@s.SubjectCode — @s.SubjectName</option>
                     }
                     else
                     {
-                        <option value="@s.SubjectId">@s.SubjectCode - @s.SubjectName</option>
+                        <option value="@s.SubjectId">@s.SubjectCode — @s.SubjectName</option>
                     }
                 }
             </select>
         </div>
-        <button type="submit" class="btn btn-secondary">Lọc</button>
+        <button type="submit" class="btn btn-secondary" style="margin-bottom:0; flex-shrink:0;">
+            <i class="bi bi-funnel"></i> Lọc
+        </button>
     </form>
 </div>
 
 @if (Model.SelectedSubjectId.HasValue)
 {
-    <div class="card" style="padding:0;">
-        <table>
+    @if (Model.Experiments.Any(e => e.AvgFaithfulness.HasValue))
+    {
+        <!-- Comparison Chart -->
+        <div class="bm-chart-card">
+            <div class="bm-chart-title">
+                <i class="bi bi-bar-chart-fill"></i>
+                So sánh hiệu năng Experiments
+            </div>
+            <div class="chart-legend">
+                <div class="legend-item">
+                    <div class="legend-dot" style="background:#22c55e;"></div>
+                    Faithfulness
+                </div>
+                <div class="legend-item">
+                    <div class="legend-dot" style="background:#3b82f6;"></div>
+                    Relevance
+                </div>
+            </div>
+            <div class="bm-chart-wrap">
+                <canvas id="compareChart"></canvas>
+            </div>
+        </div>
+    }
+
+    <!-- Experiments Table -->
+    <div class="bm-table-card">
+        <div class="bm-table-header">
+            <h3><i class="bi bi-table" style="color:var(--accent); margin-right:0.35rem;"></i>Danh sách Experiments</h3>
+            <span style="font-size:0.75rem; color:var(--text-muted);">@Model.Experiments.Count() experiment(s)</span>
+        </div>
+
+        <table class="bm-table">
             <thead>
                 <tr>
                     <th>Tên Experiment</th>
-                    <th>Cấu hình AI/Embedding</th>
-                    <th>Chiến lược Chunking</th>
+                    <th>AI / Embedding</th>
+                    <th>Chunking</th>
                     <th>Trạng thái</th>
-                    <th>Điểm số (Faith/Rel)</th>
+                    <th>Faithfulness</th>
+                    <th>Relevance</th>
                     <th>Ngày tạo</th>
-                    <th></th>
+                    <th>Hành động</th>
                 </tr>
             </thead>
             <tbody>
@@ -59,52 +341,207 @@
                 {
                     <tr>
                         <td>
-                            <div style="font-weight:600;">@exp.ExperimentName</div>
-                            <div style="font-size:0.75rem; color:#6c757d;">@exp.TestSetCount Test cases</div>
+                            <div style="font-weight:600; color:var(--text);">@exp.ExperimentName</div>
+                            <div style="font-size:0.72rem; color:var(--text-muted); margin-top:0.15rem;">
+                                <i class="bi bi-journal-bookmark"></i>
+                                @exp.TestSetCount test case(s)
+                            </div>
                         </td>
                         <td>
-                            <div style="font-size:0.8rem;">@exp.AiModelName</div>
-                            <div style="font-size:0.75rem; color:#6c757d;">@exp.EmbeddingModelName</div>
+                            <div style="font-size:0.8rem; font-weight:600;">@exp.AiModelName</div>
+                            <div style="font-size:0.72rem; color:var(--text-muted);">
+                                <i class="bi bi-cpu"></i> @exp.EmbeddingModelName
+                            </div>
                         </td>
-                        <td style="font-size:0.875rem;">@exp.ChunkingStrategyName</td>
                         <td>
-                            <span class="badge badge-@(exp.Status.ToLower() == "completed" ? "indexed" : exp.Status.ToLower() == "running" ? "processing" : exp.Status.ToLower() == "failed" ? "failed" : "pending")">
+                            <span style="font-size:0.78rem; background:#f1f5f9; border:1px solid var(--border); padding:0.15rem 0.5rem; border-radius:4px; white-space:nowrap;">
+                                @exp.ChunkingStrategyName
+                            </span>
+                        </td>
+                        <td>
+                            @{
+                                var statusClass = exp.Status?.ToLower() switch {
+                                    "completed" => "completed",
+                                    "running"   => "running",
+                                    "failed"    => "failed",
+                                    _           => "pending"
+                                };
+                                var statusIcon = exp.Status?.ToLower() switch {
+                                    "completed" => "bi-check-circle-fill",
+                                    "running"   => "bi-arrow-repeat",
+                                    "failed"    => "bi-x-circle-fill",
+                                    _           => "bi-hourglass-split"
+                                };
+                            }
+                            <span class="status-pill @statusClass">
+                                @if (exp.Status == "Running")
+                                {
+                                    <span class="pulse-dot"></span>
+                                }
+                                else
+                                {
+                                    <i class="bi @statusIcon"></i>
+                                }
                                 @exp.Status
                             </span>
                         </td>
                         <td>
-                            @if (exp.AvgFaithfulness.HasValue && exp.AvgRelevance.HasValue)
+                            @if (exp.AvgFaithfulness.HasValue)
                             {
-                                <div style="font-size:0.8rem; color:#198754;">F: @exp.AvgFaithfulness.Value.ToString("P1")</div>
-                                <div style="font-size:0.8rem; color:#0d6efd;">R: @exp.AvgRelevance.Value.ToString("P1")</div>
+                                var faithPct = (int)(exp.AvgFaithfulness.Value * 100);
+                                <div class="score-bar-wrap">
+                                    <div class="score-bar">
+                                        <div class="score-bar-fill faith" style="width:@faithPct%"></div>
+                                    </div>
+                                    <span class="score-val faith">@exp.AvgFaithfulness.Value.ToString("P0")</span>
+                                </div>
                             }
-                            else
-                            {
-                                <span style="color:#6c757d; font-size:0.8rem;">Chưa có</span>
-                            }
+                            else { <span style="color:var(--text-muted); font-size:0.75rem;">—</span> }
                         </td>
-                        <td style="font-size:0.8rem;">@exp.CreatedAt.ToString("dd/MM/yyyy HH:mm")</td>
                         <td>
-                            <div style="display:flex; gap:0.25rem;">
+                            @if (exp.AvgRelevance.HasValue)
+                            {
+                                var relPct = (int)(exp.AvgRelevance.Value * 100);
+                                <div class="score-bar-wrap">
+                                    <div class="score-bar">
+                                        <div class="score-bar-fill rel" style="width:@relPct%"></div>
+                                    </div>
+                                    <span class="score-val rel">@exp.AvgRelevance.Value.ToString("P0")</span>
+                                </div>
+                            }
+                            else { <span style="color:var(--text-muted); font-size:0.75rem;">—</span> }
+                        </td>
+                        <td style="font-size:0.75rem; color:var(--text-muted); white-space:nowrap;">
+                            @exp.CreatedAt.ToString("dd/MM/yyyy")
+                            <div>@exp.CreatedAt.ToString("HH:mm")</div>
+                        </td>
+                        <td>
+                            <div class="bm-actions">
                                 @if (exp.Status == "Pending" && (User.IsInRole("Admin") || User.IsInRole("Teacher")))
                                 {
-                                    <form method="post" asp-page-handler="RunExperiment">
+                                    <form method="post" asp-page-handler="RunExperiment" style="margin:0;">
                                         @Html.AntiForgeryToken()
                                         <input type="hidden" name="experimentId" value="@exp.ExperimentId" />
                                         <input type="hidden" name="subjectId" value="@Model.SelectedSubjectId" />
-                                        <button class="btn btn-success btn-sm">Run</button>
+                                        <button class="bm-btn bm-btn-run" type="submit">
+                                            <i class="bi bi-play-fill"></i> Run
+                                        </button>
                                     </form>
                                 }
-                                <a href="/Benchmark/Details/@exp.ExperimentId" class="btn btn-secondary btn-sm">Chi tiết</a>
+                                <a href="/Benchmark/Details/@exp.ExperimentId" class="bm-btn bm-btn-detail">
+                                    <i class="bi bi-bar-chart"></i> Chi tiết
+                                </a>
                             </div>
                         </td>
                     </tr>
                 }
                 @if (!Model.Experiments.Any())
                 {
-                    <tr><td colspan="7" style="text-align:center; color:#6c757d; padding:2rem;">Chưa có Experiment nào cho môn học này.</td></tr>
+                    <tr>
+                        <td colspan="8">
+                            <div class="bm-empty">
+                                <i class="bi bi-clipboard-data"></i>
+                                <h4>Chưa có Experiment nào</h4>
+                                <p>Tạo experiment mới để bắt đầu đánh giá hiệu suất RAG.</p>
+                            </div>
+                        </td>
+                    </tr>
                 }
             </tbody>
         </table>
     </div>
+}
+else
+{
+    <div class="bm-empty" style="background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:3rem;">
+        <i class="bi bi-bar-chart-steps"></i>
+        <h4>Chọn môn học để xem Experiments</h4>
+        <p>Sử dụng bộ lọc bên trên để lọc theo môn học.</p>
+    </div>
+}
+
+@section Scripts {
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+(function () {
+    // Build chart data from server-rendered model
+    const experiments = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(
+        Model.Experiments
+            .Where(e => e.AvgFaithfulness.HasValue || e.AvgRelevance.HasValue)
+            .Select(e => new {
+                name = e.ExperimentName?.Length > 20
+                    ? e.ExperimentName[..18] + "…"
+                    : (e.ExperimentName ?? "?"),
+                faith = e.AvgFaithfulness ?? 0,
+                rel   = e.AvgRelevance ?? 0
+            })
+            .ToList()
+    ));
+
+    const ctx = document.getElementById('compareChart');
+    if (!ctx || !experiments || experiments.length === 0) return;
+
+    new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: experiments.map(e => e.name),
+            datasets: [
+                {
+                    label: 'Faithfulness',
+                    data: experiments.map(e => +(e.faith * 100).toFixed(1)),
+                    backgroundColor: 'rgba(34, 197, 94, 0.7)',
+                    borderColor: '#16a34a',
+                    borderWidth: 1.5,
+                    borderRadius: 5,
+                    borderSkipped: false,
+                },
+                {
+                    label: 'Relevance',
+                    data: experiments.map(e => +(e.rel * 100).toFixed(1)),
+                    backgroundColor: 'rgba(59, 130, 246, 0.7)',
+                    borderColor: '#1d4ed8',
+                    borderWidth: 1.5,
+                    borderRadius: 5,
+                    borderSkipped: false,
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    backgroundColor: '#1e293b',
+                    titleColor: '#e2e8f0',
+                    bodyColor: '#94a3b8',
+                    padding: 10,
+                    callbacks: {
+                        label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y.toFixed(1)}%`
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    grid: { display: false },
+                    ticks: {
+                        font: { size: 11, weight: '600' },
+                        color: '#64748b'
+                    }
+                },
+                y: {
+                    beginAtZero: true,
+                    max: 100,
+                    grid: { color: '#f1f5f9' },
+                    ticks: {
+                        font: { size: 11 },
+                        color: '#94a3b8',
+                        callback: v => v + '%'
+                    }
+                }
+            }
+        }
+    });
+})();
+</script>
 }
