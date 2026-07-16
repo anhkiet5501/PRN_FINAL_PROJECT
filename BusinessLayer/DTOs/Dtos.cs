@@ -17,6 +17,7 @@ public class UserDto
     public string Role { get; set; } = string.Empty;
     public string? FullName { get; set; }
     public bool IsActive { get; set; }
+    public int TokensUsed { get; set; }
     public DateTime CreatedAt { get; set; }
 }
 
@@ -135,6 +136,7 @@ public class ChatMessageDto
     public string Role { get; set; } = string.Empty;
     public string Content { get; set; } = string.Empty;
     public int? LatencyMs { get; set; }
+    public int? TokenCount { get; set; }
     public DateTime CreatedAt { get; set; }
     public List<CitationDto> Citations { get; set; } = [];
 }
@@ -159,6 +161,8 @@ public class ChatResponseDto
 {
     public string Answer { get; set; } = string.Empty;
     public int LatencyMs { get; set; }
+    public int TokensUsedThisMessage { get; set; }
+    public int UserTokensUsed { get; set; }
     public List<CitationDto> Citations { get; set; } = [];
     public bool IsError { get; set; }
     public string? ErrorMessage { get; set; }
@@ -228,4 +232,101 @@ public class BenchmarkResultDto
     public decimal? AnswerSimilarityScore { get; set; }
     public int? LatencyMs { get; set; }
     public string? ErrorMessage { get; set; }
+}
+
+// ── Admin Statistics DTOs ────────────────────────────────────────────
+
+public class MonthlyCountDto
+{
+    public int Year { get; set; }
+    public int Month { get; set; }
+    public string Label { get; set; } = string.Empty;
+    public int Count { get; set; }
+}
+
+public class TopUserActivityDto
+{
+    public int UserId { get; set; }
+    public string DisplayName { get; set; } = string.Empty;
+    public string Role { get; set; } = string.Empty;
+    public int Count { get; set; }
+}
+
+public class NamedCountDto
+{
+    public string Name { get; set; } = string.Empty;
+    public int Count { get; set; }
+}
+
+public class HourlyCountDto
+{
+    public int Hour { get; set; }
+    public string Label { get; set; } = string.Empty;
+    public int Count { get; set; }
+}
+
+public class KnowledgeBaseAnalyticsDto
+{
+    public int TotalDocuments { get; set; }
+    public int PendingDocuments { get; set; }
+    public int ProcessingDocuments { get; set; }
+    public int IndexedDocuments { get; set; }
+    public int FailedDocuments { get; set; }
+    public int TotalChunks { get; set; }
+    public int TotalEmbeddings { get; set; }
+    public double? AvgIndexingSeconds { get; set; }
+    public double? P95IndexingSeconds { get; set; }
+    public double ErrorRatePercent { get; set; }
+}
+
+public class AiRagAnalyticsDto
+{
+    public int TotalChatSessions { get; set; }
+    public int TotalQuestions { get; set; }
+    public long TotalTokens { get; set; }
+    public double? AvgLatencyMs { get; set; }
+    public double? P95LatencyMs { get; set; }
+    public int AnswersWithContext { get; set; }
+    public int AnswersWithoutContext { get; set; }
+    public double ContextHitRatePercent { get; set; }
+    public List<NamedCountDto> TopSubjectsAsked { get; set; } = new();
+    public List<NamedCountDto> TopRetrievedDocuments { get; set; } = new();
+    public List<TopUserActivityDto> TopTokenUsers { get; set; } = new();
+}
+
+public class LearningAnalyticsDto
+{
+    public List<NamedCountDto> PopularSubjects { get; set; } = new();
+    public List<HourlyCountDto> PeakHours { get; set; } = new();
+    public List<NamedCountDto> QuestionsPerDocument { get; set; } = new();
+    public int ActiveUsersLast7Days { get; set; }
+    public int ActiveUsersLast30Days { get; set; }
+}
+
+public class AdminStatisticsDto
+{
+    public int TotalUsers { get; set; }
+    public int AdminCount { get; set; }
+    public int TeacherCount { get; set; }
+    public int StudentCount { get; set; }
+    public int ActiveUsers { get; set; }
+    public int InactiveUsers { get; set; }
+    public int NewUsersThisMonth { get; set; }
+
+    public int TotalSubjects { get; set; }
+    public int TotalDocuments { get; set; }
+    public int TotalChatSessions { get; set; }
+
+    public int TeachersWithAssignments { get; set; }
+    public int SubjectTeacherLinks { get; set; }
+    public int DocumentsUploadedThisMonth { get; set; }
+    public int ChatSessionsThisMonth { get; set; }
+
+    public List<MonthlyCountDto> RegistrationsByMonth { get; set; } = new();
+    public List<TopUserActivityDto> TopChatUsers { get; set; } = new();
+    public List<TopUserActivityDto> TopUploaders { get; set; } = new();
+
+    public KnowledgeBaseAnalyticsDto KnowledgeBase { get; set; } = new();
+    public AiRagAnalyticsDto AiRag { get; set; } = new();
+    public LearningAnalyticsDto Learning { get; set; } = new();
 }

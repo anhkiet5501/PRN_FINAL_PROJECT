@@ -116,6 +116,7 @@ public class ChatService : IChatService
             Role = h.Role,
             Content = h.Content,
             LatencyMs = h.LatencyMs,
+            TokenCount = h.TokenCount,
             CreatedAt = h.CreatedAt,
             Citations = h.Citations.Select(c => new CitationDto
             {
@@ -237,7 +238,7 @@ public class ChatService : IChatService
                 """;
 
             // 6. Call Gemini API with retry on 429
-            var answer = await CallGeminiWithRetryAsync(
+            var (answer, totalTokens) = await CallGeminiWithRetryAsync(
                 session.AiModel.ModelName,
                 systemPrompt,
                 history.Select(h => (h.Role, h.Content)).ToList(),
@@ -245,6 +246,7 @@ public class ChatService : IChatService
                 cancellationToken);
 
             stopwatch.Stop();
+            var hasContext = retrievedChunks.Count > 0;
 
             // 7. Save user message to history
             var userMessage = new ChatHistory
@@ -252,7 +254,6 @@ public class ChatService : IChatService
                 ChatSessionId = dto.ChatSessionId,
                 Role = "user",
                 Content = dto.Question,
-                TokenCount = dto.Question.Split(' ').Length,
                 CreatedAt = DateTime.UtcNow
             };
             await _uow.ChatHistories.AddAsync(userMessage);
@@ -264,8 +265,9 @@ public class ChatService : IChatService
                 ChatSessionId = dto.ChatSessionId,
                 Role = "assistant",
                 Content = answer,
-                TokenCount = answer.Split(' ').Length,
+                TokenCount = totalTokens,
                 LatencyMs = (int)stopwatch.ElapsedMilliseconds,
+                HasContext = hasContext,
                 CreatedAt = DateTime.UtcNow
             };
             await _uow.ChatHistories.AddAsync(assistantMessage);
@@ -284,12 +286,22 @@ public class ChatService : IChatService
 
             await _uow.ChatCitations.AddRangeAsync(citations);
 
-            // Update session last activity
+            // Update session last activity + accumulate user tokens
             var sessionEntity = await _uow.ChatSessions.GetByIdAsync(dto.ChatSessionId);
+            var userTokensUsed = 0;
             if (sessionEntity != null)
             {
                 sessionEntity.LastActivityAt = DateTime.UtcNow;
                 _uow.ChatSessions.Update(sessionEntity);
+
+                var user = await _uow.Users.GetByIdAsync(sessionEntity.UserId);
+                if (user != null)
+                {
+                    user.TokensUsed += totalTokens;
+                    user.UpdatedAt = DateTime.UtcNow;
+                    _uow.Users.Update(user);
+                    userTokensUsed = user.TokensUsed;
+                }
             }
             await _uow.SaveChangesAsync();
 
@@ -297,6 +309,8 @@ public class ChatService : IChatService
             {
                 Answer = answer,
                 LatencyMs = (int)stopwatch.ElapsedMilliseconds,
+                TokensUsedThisMessage = totalTokens,
+                UserTokensUsed = userTokensUsed,
                 Citations = retrievedChunks.Select((c, idx) => new CitationDto
                 {
                     DocumentChunkId = c.DocumentChunkId,
@@ -321,7 +335,7 @@ public class ChatService : IChatService
 
     // ── Gemini Chat API Call with 429 Retry ──────────────────────────
 
-    private async Task<string> CallGeminiWithRetryAsync(
+    private async Task<(string Text, int TotalTokens)> CallGeminiWithRetryAsync(
         string modelName,
         string systemPrompt,
         List<(string Role, string Content)> history,
@@ -405,15 +419,32 @@ public class ChatService : IChatService
         }
     }
 
-    private static string ParseGeminiResponse(string json)
+    private static (string Text, int TotalTokens) ParseGeminiResponse(string json)
     {
         using var doc = JsonDocument.Parse(json);
-        return doc.RootElement
+        var root = doc.RootElement;
+
+        var text = root
             .GetProperty("candidates")[0]
             .GetProperty("content")
             .GetProperty("parts")[0]
             .GetProperty("text")
             .GetString() ?? "No response generated.";
+
+        var totalTokens = 0;
+        if (root.TryGetProperty("usageMetadata", out var usage))
+        {
+            if (usage.TryGetProperty("totalTokenCount", out var totalProp) && totalProp.TryGetInt32(out var total))
+                totalTokens = total;
+            else
+            {
+                var prompt = usage.TryGetProperty("promptTokenCount", out var p) && p.TryGetInt32(out var pv) ? pv : 0;
+                var candidates = usage.TryGetProperty("candidatesTokenCount", out var c) && c.TryGetInt32(out var cv) ? cv : 0;
+                totalTokens = prompt + candidates;
+            }
+        }
+
+        return (text, totalTokens);
     }
 
     public async Task<bool> DeleteSessionAsync(int sessionId, int userId)

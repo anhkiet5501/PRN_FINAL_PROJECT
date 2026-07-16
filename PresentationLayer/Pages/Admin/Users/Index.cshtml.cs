@@ -101,10 +101,17 @@ public class IndexModel : PageModel
 
     public async Task<IActionResult> OnPostDeleteUserAsync(int userId)
     {
-        var result = await _authService.DeleteUserAsync(userId);
-        if (result) TempData["Success"] = "Đã xóa User!";
-        else TempData["Error"] = "Xóa thất bại!";
-        
+        try
+        {
+            var result = await _authService.DeleteUserAsync(userId);
+            if (result) TempData["Success"] = "Đã xóa User!";
+            else TempData["Error"] = "Xóa thất bại!";
+        }
+        catch (InvalidOperationException ex)
+        {
+            TempData["Error"] = ex.Message;
+        }
+
         return RedirectToPage();
     }
 

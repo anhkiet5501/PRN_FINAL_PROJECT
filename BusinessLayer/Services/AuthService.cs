@@ -186,6 +186,7 @@ Vui lòng đăng nhập và đổi mật khẩu sớm nhất có thể.
         Role = user.Role,
         FullName = user.FullName,
         IsActive = user.IsActive,
+        TokensUsed = user.TokensUsed,
         CreatedAt = user.CreatedAt
     };
 
@@ -207,6 +208,9 @@ Vui lòng đăng nhập và đổi mật khẩu sớm nhất có thể.
     {
         var user = await _uow.Users.GetByIdAsync(userId);
         if (user is null) return false;
+
+        if (string.Equals(user.Role, "Admin", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("Không thể xóa tài khoản Admin.");
 
         _uow.Users.Remove(user);
         await _uow.SaveChangesAsync();

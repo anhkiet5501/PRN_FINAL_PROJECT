@@ -27,6 +27,7 @@
                 <th>Họ và Tên</th>
                 <th>Email</th>
                 <th>Vai Trò</th>
+                <th>Token đã dùng</th>
                 <th>Trạng Thái</th>
                 <th>Hành Động</th>
             </tr>
@@ -39,6 +40,7 @@
                     <td style="font-weight: 500;">@(string.IsNullOrEmpty(user.FullName) ? user.Username : user.FullName)</td>
                     <td>@user.Email</td>
                     <td>@(user.Role == "Admin" ? "ADMIN" : user.Role == "Teacher" ? "Giảng viên" : "Sinh viên")</td>
+                    <td style="font-variant-numeric: tabular-nums;">@user.TokensUsed.ToString("N0")</td>
                     <td>
                         @if (user.IsActive)
                         {
@@ -54,13 +56,16 @@
                             <button type="button" class="btn-action btn-action-edit" title="Sửa" onclick="showEditModal(@user.UserId, '@user.FullName', '@user.Role')">
                                 <i class="bi bi-pencil"></i> SỬA
                             </button>
-                            <form method="post" asp-page-handler="DeleteUser" style="display:inline;" onsubmit="return confirm('Bạn có chắc muốn xóa người dùng này?');">
-                                @Html.AntiForgeryToken()
-                                <input type="hidden" name="userId" value="@user.UserId" />
-                                <button type="submit" class="btn-action btn-action-delete" title="Xóa">
-                                    <i class="bi bi-trash"></i> XÓA
-                                </button>
-                            </form>
+                            @if (user.Role != "Admin")
+                            {
+                                <form method="post" asp-page-handler="DeleteUser" style="display:inline;" onsubmit="return confirm('Bạn có chắc muốn xóa người dùng này?');">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="userId" value="@user.UserId" />
+                                    <button type="submit" class="btn-action btn-action-delete" title="Xóa">
+                                        <i class="bi bi-trash"></i> XÓA
+                                    </button>
+                                </form>
+                            }
                         </div>
                     </td>
                 </tr>

@@ -20,11 +20,14 @@ public class ChatHistory
     [Required]
     public string Content { get; set; } = string.Empty;
 
-    /// <summary>Token count for this message (tracked for cost estimation)</summary>
+    /// <summary>Token count for this message (Gemini usageMetadata when available)</summary>
     public int? TokenCount { get; set; }
 
     /// <summary>LLM response latency in ms (only for assistant messages)</summary>
     public int? LatencyMs { get; set; }
+
+    /// <summary>Whether the assistant reply had RAG citations (context).</summary>
+    public bool? HasContext { get; set; }
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 

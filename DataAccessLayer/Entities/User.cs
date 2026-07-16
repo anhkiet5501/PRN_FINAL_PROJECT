@@ -25,6 +25,9 @@ public class User
 
     public bool IsActive { get; set; } = true;
 
+    /// <summary>Cumulative chat LLM tokens used by this user.</summary>
+    public int TokensUsed { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     public DateTime? UpdatedAt { get; set; }

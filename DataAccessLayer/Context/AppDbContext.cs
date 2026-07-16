@@ -244,6 +244,7 @@ public class AppDbContext : DbContext
             Role = "Admin",
             FullName = "System Administrator",
             IsActive = true,
+            TokensUsed = 0,
             CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc)
         });
 

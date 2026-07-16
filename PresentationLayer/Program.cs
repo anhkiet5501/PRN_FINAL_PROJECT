@@ -129,6 +129,7 @@ builder.Services.AddScoped<IChatService>(sp =>
         apiKeys: apiKeys);
 });
 builder.Services.AddScoped<IBenchmarkService, BenchmarkService>();
+builder.Services.AddScoped<IStatisticsService, StatisticsService>();
 
 // ── Razor Pages ───────────────────────────────────────────────────────
 builder.Services.AddRazorPages(options =>

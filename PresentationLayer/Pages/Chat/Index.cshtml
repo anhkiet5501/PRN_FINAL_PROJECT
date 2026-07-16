@@ -572,6 +572,13 @@
                                         @msg.LatencyMs ms
                                     </span>
                                 }
+                                @if (msg.TokenCount.HasValue && msg.TokenCount.Value > 0)
+                                {
+                                    <span class="msg-latency">
+                                        <i class="bi bi-coin"></i>
+                                        @msg.TokenCount.Value.ToString("N0") token
+                                    </span>
+                                }
                             </div>
                             @if (msg.Citations.Any())
                             {
@@ -745,7 +752,7 @@ async function sendMessage() {
         if (data.isError) {
             appendMessage('assistant', data.errorMessage, [], true);
         } else {
-            appendMessage('assistant', data.answer, data.citations || [], false, data.latencyMs);
+            appendMessage('assistant', data.answer, data.citations || [], false, data.latencyMs, data.tokensUsedThisMessage, data.userTokensUsed);
         }
     } catch (err) {
         showTyping(false);
@@ -778,7 +785,7 @@ function formatContent(text) {
     return html;
 }
 
-function appendMessage(role, content, citations = [], isError = false, latencyMs = null) {
+function appendMessage(role, content, citations = [], isError = false, latencyMs = null, tokensThisMsg = null, userTokensTotal = null) {
     const row = document.createElement('div');
     row.className = 'msg-row ' + role;
 
@@ -791,6 +798,11 @@ function appendMessage(role, content, citations = [], isError = false, latencyMs
     const timeStr = new Date().toLocaleTimeString('vi', { hour: '2-digit', minute: '2-digit' });
     const latencyHtml = latencyMs
         ? `<span class="msg-latency"><i class="bi bi-speedometer2"></i> ${latencyMs} ms</span>`
+        : '';
+    const tokenHtml = (tokensThisMsg != null && tokensThisMsg > 0)
+        ? `<span class="msg-latency"><i class="bi bi-coin"></i> ${tokensThisMsg.toLocaleString('vi')} token` +
+          (userTokensTotal != null ? ` · tổng ${userTokensTotal.toLocaleString('vi')}` : '') +
+          `</span>`
         : '';
 
     // Build citations HTML
@@ -820,6 +832,7 @@ function appendMessage(role, content, citations = [], isError = false, latencyMs
             <div class="msg-meta">
                 <span>${timeStr}</span>
                 ${latencyHtml}
+                ${tokenHtml}
             </div>
             ${citHtml}
         </div>

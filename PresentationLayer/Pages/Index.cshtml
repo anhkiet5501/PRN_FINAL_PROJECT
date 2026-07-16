@@ -50,8 +50,12 @@
         <h2 class="section-heading">Tiện ích quản lý hệ thống</h2>
         <div class="utility-grid">
             <a href="/Admin/Users" class="utility-card">
-                <span class="utility-icon utility-icon--blue"><i class="bi bi-info-circle"></i></span>
+                <span class="utility-icon utility-icon--blue"><i class="bi bi-people"></i></span>
                 <span class="utility-label">Quản lý người dùng</span>
+            </a>
+            <a href="/Admin/Statistics" class="utility-card">
+                <span class="utility-icon utility-icon--green"><i class="bi bi-bar-chart-line"></i></span>
+                <span class="utility-label">Thống kê người dùng</span>
             </a>
             <a href="/Subjects" class="utility-card">
                 <span class="utility-icon utility-icon--amber"><i class="bi bi-journal-bookmark"></i></span>
@@ -65,22 +69,35 @@
     </section>
 
     <section class="home-section">
-        <h2 class="section-heading">Thống kê nhanh</h2>
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:1rem; flex-wrap:wrap; margin-bottom:0.5rem;">
+            <h2 class="section-heading" style="margin:0;">Thống kê nhanh</h2>
+            <a href="/Admin/Statistics" class="soft-btn btn-light" style="font-size:0.8rem;">
+                <i class="bi bi-arrow-right-circle"></i> Xem chi tiết
+            </a>
+        </div>
+        @{
+            var stats = Model.AdminStats;
+        }
         <div class="utility-grid">
             <div class="utility-card utility-card--stat">
-                <span class="utility-icon utility-icon--green"><i class="bi bi-currency-dollar"></i></span>
-                <span class="utility-stat">0đ</span>
-                <span class="utility-label">Doanh thu (tháng)</span>
-            </div>
-            <div class="utility-card utility-card--stat">
                 <span class="utility-icon utility-icon--green"><i class="bi bi-people"></i></span>
-                <span class="utility-stat">3</span>
+                <span class="utility-stat">@(stats?.TotalUsers ?? 0)</span>
                 <span class="utility-label">Người dùng</span>
             </div>
             <div class="utility-card utility-card--stat">
+                <span class="utility-icon utility-icon--green"><i class="bi bi-person-check"></i></span>
+                <span class="utility-stat">@(stats?.ActiveUsers ?? 0)</span>
+                <span class="utility-label">Đang hoạt động</span>
+            </div>
+            <div class="utility-card utility-card--stat">
                 <span class="utility-icon utility-icon--green"><i class="bi bi-journal-bookmark"></i></span>
-                <span class="utility-stat">2</span>
+                <span class="utility-stat">@(stats?.TotalSubjects ?? 0)</span>
                 <span class="utility-label">Môn học</span>
+            </div>
+            <div class="utility-card utility-card--stat">
+                <span class="utility-icon utility-icon--green"><i class="bi bi-chat-dots"></i></span>
+                <span class="utility-stat">@(stats?.TotalChatSessions ?? 0)</span>
+                <span class="utility-label">Phiên chat</span>
             </div>
         </div>
     </section>

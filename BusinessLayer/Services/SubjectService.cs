@@ -235,7 +235,8 @@ public class SubjectService : ISubjectService
                 Email = u.Email,
                 FullName = u.FullName,
                 Role = u.Role,
-                IsActive = u.IsActive
+                IsActive = u.IsActive,
+                TokensUsed = u.TokensUsed
             })
             .ToListAsync();
     }

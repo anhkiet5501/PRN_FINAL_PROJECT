@@ -1,0 +1,602 @@
+@page
+@model PRN222_Assignment2.Pages.Admin.Statistics.IndexModel
+@{
+    ViewData["Title"] = "Thống kê hệ thống";
+    ViewData["ActivePage"] = "Statistics";
+    var s = Model.Stats;
+    var kb = s.KnowledgeBase;
+    var ai = s.AiRag;
+    var learn = s.Learning;
+}
+
+<style>
+.stats-kpi-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+}
+.stats-kpi-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1rem 1.25rem;
+    box-shadow: var(--shadow);
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+}
+.stats-kpi-icon {
+    width: 42px; height: 42px;
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.15rem;
+    flex-shrink: 0;
+}
+.stats-kpi-icon.blue   { background: #eff6ff; color: #2563eb; }
+.stats-kpi-icon.green  { background: #f0fdf4; color: #16a34a; }
+.stats-kpi-icon.amber  { background: #fffbeb; color: #d97706; }
+.stats-kpi-icon.purple { background: #faf5ff; color: #7c3aed; }
+.stats-kpi-icon.red    { background: #fef2f2; color: #dc2626; }
+.stats-kpi-icon.teal   { background: #f0fdfa; color: #0d9488; }
+.stats-kpi-value { font-size: 1.55rem; font-weight: 800; color: var(--text); line-height: 1; }
+.stats-kpi-label { font-size: 0.72rem; color: var(--text-muted); font-weight: 500; margin-top: 0.2rem; }
+
+.stats-section-title {
+    font-size: 1rem;
+    font-weight: 700;
+    margin: 1.75rem 0 0.85rem;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+.stats-section-title:first-of-type { margin-top: 0.5rem; }
+.stats-section-title i { color: var(--accent); }
+
+.stats-charts-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.25rem;
+    margin-bottom: 1.25rem;
+}
+.stats-chart-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.25rem 1.5rem;
+    box-shadow: var(--shadow);
+}
+.stats-chart-title {
+    font-size: 0.9rem;
+    font-weight: 700;
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+.stats-chart-title i { color: var(--accent); }
+.stats-chart-wrap { position: relative; height: 240px; }
+
+.stats-tables-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.25rem;
+    margin-bottom: 1.25rem;
+}
+.stats-table-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    overflow: hidden;
+}
+.stats-table-card h3 {
+    font-size: 0.9rem;
+    font-weight: 700;
+    padding: 0.9rem 1.25rem;
+    border-bottom: 1px solid var(--border);
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+.stats-table { width: 100%; border-collapse: collapse; }
+.stats-table th {
+    padding: 0.65rem 1rem;
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    color: var(--text-muted);
+    background: #f8fafc;
+    border-bottom: 1px solid var(--border);
+    text-align: left;
+}
+.stats-table td {
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid #f1f5f9;
+    font-size: 0.875rem;
+}
+.stats-table tbody tr:hover { background: #f8fafc; }
+.stats-empty {
+    padding: 2rem 1rem;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 0.85rem;
+}
+.stats-role-badge {
+    display: inline-block;
+    font-size: 0.7rem;
+    font-weight: 600;
+    padding: 0.15rem 0.45rem;
+    border-radius: 4px;
+    background: #f1f5f9;
+    border: 1px solid var(--border);
+}
+
+@@media (max-width: 960px) {
+    .stats-kpi-row { grid-template-columns: repeat(2, 1fr); }
+    .stats-charts-row, .stats-tables-row { grid-template-columns: 1fr; }
+}
+@@media (max-width: 560px) {
+    .stats-kpi-row { grid-template-columns: 1fr; }
+}
+</style>
+
+<div class="page-header-row">
+    <h1 class="dashboard-title" style="margin-bottom:0;">THỐNG KÊ HỆ THỐNG</h1>
+    <a href="/Admin/Users" class="soft-btn btn-light"><i class="bi bi-people"></i> Quản lý người dùng</a>
+</div>
+
+@* ── User overview ──────────────────────────────────────── *@
+<h2 class="stats-section-title"><i class="bi bi-people"></i> Tổng quan người dùng</h2>
+<div class="stats-kpi-row">
+    <div class="stats-kpi-card">
+        <div class="stats-kpi-icon blue"><i class="bi bi-people-fill"></i></div>
+        <div>
+            <div class="stats-kpi-value">@s.TotalUsers</div>
+            <div class="stats-kpi-label">Tổng người dùng</div>
+        </div>
+    </div>
+    <div class="stats-kpi-card">
+        <div class="stats-kpi-icon green"><i class="bi bi-person-check-fill"></i></div>
+        <div>
+            <div class="stats-kpi-value">@s.ActiveUsers</div>
+            <div class="stats-kpi-label">Tài khoản hoạt động</div>
+        </div>
+    </div>
+    <div class="stats-kpi-card">
+        <div class="stats-kpi-icon amber"><i class="bi bi-person-plus-fill"></i></div>
+        <div>
+            <div class="stats-kpi-value">@s.NewUsersThisMonth</div>
+            <div class="stats-kpi-label">Mới trong tháng</div>
+        </div>
+    </div>
+    <div class="stats-kpi-card">
+        <div class="stats-kpi-icon teal"><i class="bi bi-link-45deg"></i></div>
+        <div>
+            <div class="stats-kpi-value">@s.TeachersWithAssignments</div>
+            <div class="stats-kpi-label">GV đã được gán môn</div>
+        </div>
+    </div>
+</div>
+
+<div class="stats-charts-row">
+    <div class="stats-chart-card">
+        <div class="stats-chart-title"><i class="bi bi-pie-chart-fill"></i> Phân bố theo vai trò</div>
+        <div class="stats-chart-wrap"><canvas id="roleChart"></canvas></div>
+    </div>
+    <div class="stats-chart-card">
+        <div class="stats-chart-title"><i class="bi bi-graph-up"></i> Đăng ký mới (6 tháng)</div>
+        <div class="stats-chart-wrap"><canvas id="regChart"></canvas></div>
+    </div>
+</div>
+
+@* ── Knowledge Base ─────────────────────────────────────── *@
+<h2 class="stats-section-title"><i class="bi bi-database"></i> Knowledge Base Analytics</h2>
+<div class="stats-kpi-row">
+    <div class="stats-kpi-card">
+        <div class="stats-kpi-icon blue"><i class="bi bi-file-earmark-text-fill"></i></div>
+        <div>
+            <div class="stats-kpi-value">@kb.TotalDocuments</div>
+            <div class="stats-kpi-label">Tài liệu</div>
+        </div>
+    </div>
+    <div class="stats-kpi-card">
+        <div class="stats-kpi-icon purple"><i class="bi bi-puzzle-fill"></i></div>
+        <div>
+            <div class="stats-kpi-value">@kb.TotalChunks</div>
+            <div class="stats-kpi-label">Chunks</div>
+        </div>
+    </div>
+    <div class="stats-kpi-card">
+        <div class="stats-kpi-icon teal"><i class="bi bi-vector-pen"></i></div>
+        <div>
+            <div class="stats-kpi-value">@kb.TotalEmbeddings</div>
+            <div class="stats-kpi-label">Embeddings</div>
+        </div>
+    </div>
+    <div class="stats-kpi-card">
+        <div class="stats-kpi-icon red"><i class="bi bi-exclamation-triangle-fill"></i></div>
+        <div>
+            <div class="stats-kpi-value">@kb.ErrorRatePercent.ToString("0.#")%</div>
+            <div class="stats-kpi-label">Tỷ lệ lỗi index</div>
+        </div>
+    </div>
+</div>
+<div class="stats-kpi-row">
+    <div class="stats-kpi-card">
+        <div class="stats-kpi-icon green"><i class="bi bi-check-circle-fill"></i></div>
+        <div>
+            <div class="stats-kpi-value">@kb.IndexedDocuments</div>
+            <div class="stats-kpi-label">Đã index</div>
+        </div>
+    </div>
+    <div class="stats-kpi-card">
+        <div class="stats-kpi-icon amber"><i class="bi bi-hourglass-split"></i></div>
+        <div>
+            <div class="stats-kpi-value">@(kb.PendingDocuments + kb.ProcessingDocuments)</div>
+            <div class="stats-kpi-label">Pending / Processing</div>
+        </div>
+    </div>
+    <div class="stats-kpi-card">
+        <div class="stats-kpi-icon blue"><i class="bi bi-stopwatch"></i></div>
+        <div>
+            <div class="stats-kpi-value">@(kb.AvgIndexingSeconds?.ToString("0.##") ?? "—")</div>
+            <div class="stats-kpi-label">TB thời gian index (s)</div>
+        </div>
+    </div>
+    <div class="stats-kpi-card">
+        <div class="stats-kpi-icon purple"><i class="bi bi-speedometer2"></i></div>
+        <div>
+            <div class="stats-kpi-value">@(kb.P95IndexingSeconds?.ToString("0.##") ?? "—")</div>
+            <div class="stats-kpi-label">P95 thời gian index (s)</div>
+        </div>
+    </div>
+</div>
+<div class="stats-charts-row">
+    <div class="stats-chart-card">
+        <div class="stats-chart-title"><i class="bi bi-bar-chart-fill"></i> Trạng thái tài liệu</div>
+        <div class="stats-chart-wrap"><canvas id="docStatusChart"></canvas></div>
+    </div>
+    <div class="stats-table-card">
+        <h3><i class="bi bi-cloud-upload"></i> Top upload tài liệu</h3>
+        @if (s.TopUploaders.Any())
+        {
+            <table class="stats-table">
+                <thead><tr><th>#</th><th>Người dùng</th><th>Số tài liệu</th></tr></thead>
+                <tbody>
+                    @{ var ui = 1; }
+                    @foreach (var u in s.TopUploaders)
+                    {
+                        <tr>
+                            <td>@ui</td>
+                            <td style="font-weight:500;">@u.DisplayName</td>
+                            <td><strong>@u.Count</strong></td>
+                        </tr>
+                        ui++;
+                    }
+                </tbody>
+            </table>
+        }
+        else { <div class="stats-empty">Chưa có dữ liệu.</div> }
+    </div>
+</div>
+
+@* ── AI & RAG ───────────────────────────────────────────── *@
+<h2 class="stats-section-title"><i class="bi bi-robot"></i> AI &amp; RAG Analytics</h2>
+<div class="stats-kpi-row">
+    <div class="stats-kpi-card">
+        <div class="stats-kpi-icon blue"><i class="bi bi-chat-dots-fill"></i></div>
+        <div>
+            <div class="stats-kpi-value">@ai.TotalChatSessions</div>
+            <div class="stats-kpi-label">Cuộc chat</div>
+        </div>
+    </div>
+    <div class="stats-kpi-card">
+        <div class="stats-kpi-icon purple"><i class="bi bi-chat-left-quote-fill"></i></div>
+        <div>
+            <div class="stats-kpi-value">@ai.TotalQuestions</div>
+            <div class="stats-kpi-label">Câu hỏi</div>
+        </div>
+    </div>
+    <div class="stats-kpi-card">
+        <div class="stats-kpi-icon teal"><i class="bi bi-coin"></i></div>
+        <div>
+            <div class="stats-kpi-value">@ai.TotalTokens.ToString("N0")</div>
+            <div class="stats-kpi-label">Token đã dùng</div>
+        </div>
+    </div>
+    <div class="stats-kpi-card">
+        <div class="stats-kpi-icon amber"><i class="bi bi-lightning-charge-fill"></i></div>
+        <div>
+            <div class="stats-kpi-value">@(ai.AvgLatencyMs?.ToString("0") ?? "—")</div>
+            <div class="stats-kpi-label">Latency TB (ms) · P95 @(ai.P95LatencyMs?.ToString("0") ?? "—")</div>
+        </div>
+    </div>
+</div>
+<div class="stats-charts-row">
+    <div class="stats-chart-card">
+        <div class="stats-chart-title"><i class="bi bi-pie-chart"></i> Truy vấn có / không ngữ cảnh (@ai.ContextHitRatePercent.ToString("0.#")% có context)</div>
+        <div class="stats-chart-wrap"><canvas id="contextChart"></canvas></div>
+    </div>
+    <div class="stats-table-card">
+        <h3><i class="bi bi-coin"></i> Top user theo token</h3>
+        @if (ai.TopTokenUsers.Any())
+        {
+            <table class="stats-table">
+                <thead><tr><th>#</th><th>Người dùng</th><th>Token</th></tr></thead>
+                <tbody>
+                    @{ var ti = 1; }
+                    @foreach (var u in ai.TopTokenUsers)
+                    {
+                        <tr>
+                            <td>@ti</td>
+                            <td style="font-weight:500;">@u.DisplayName</td>
+                            <td><strong>@u.Count.ToString("N0")</strong></td>
+                        </tr>
+                        ti++;
+                    }
+                </tbody>
+            </table>
+        }
+        else { <div class="stats-empty">Chưa có token được ghi nhận.</div> }
+    </div>
+</div>
+<div class="stats-tables-row">
+    <div class="stats-table-card">
+        <h3><i class="bi bi-bookmark-star"></i> Top chủ đề (theo môn học)</h3>
+        @if (ai.TopSubjectsAsked.Any())
+        {
+            <table class="stats-table">
+                <thead><tr><th>#</th><th>Môn học</th><th>Phiên chat</th></tr></thead>
+                <tbody>
+                    @{ var si = 1; }
+                    @foreach (var item in ai.TopSubjectsAsked)
+                    {
+                        <tr>
+                            <td>@si</td>
+                            <td style="font-weight:500;">@item.Name</td>
+                            <td><strong>@item.Count</strong></td>
+                        </tr>
+                        si++;
+                    }
+                </tbody>
+            </table>
+        }
+        else { <div class="stats-empty">Chưa có dữ liệu.</div> }
+    </div>
+    <div class="stats-table-card">
+        <h3><i class="bi bi-file-earmark-richtext"></i> Tài liệu được truy xuất nhiều nhất</h3>
+        @if (ai.TopRetrievedDocuments.Any())
+        {
+            <table class="stats-table">
+                <thead><tr><th>#</th><th>Tài liệu</th><th>Lượt cite</th></tr></thead>
+                <tbody>
+                    @{ var di = 1; }
+                    @foreach (var item in ai.TopRetrievedDocuments)
+                    {
+                        <tr>
+                            <td>@di</td>
+                            <td style="font-weight:500;">@item.Name</td>
+                            <td><strong>@item.Count</strong></td>
+                        </tr>
+                        di++;
+                    }
+                </tbody>
+            </table>
+        }
+        else { <div class="stats-empty">Chưa có citation.</div> }
+    </div>
+</div>
+
+@* ── Learning ───────────────────────────────────────────── *@
+<h2 class="stats-section-title"><i class="bi bi-mortarboard"></i> Learning Analytics</h2>
+<div class="stats-kpi-row">
+    <div class="stats-kpi-card">
+        <div class="stats-kpi-icon green"><i class="bi bi-person-walking"></i></div>
+        <div>
+            <div class="stats-kpi-value">@learn.ActiveUsersLast7Days</div>
+            <div class="stats-kpi-label">User học (7 ngày)</div>
+        </div>
+    </div>
+    <div class="stats-kpi-card">
+        <div class="stats-kpi-icon blue"><i class="bi bi-calendar-week"></i></div>
+        <div>
+            <div class="stats-kpi-value">@learn.ActiveUsersLast30Days</div>
+            <div class="stats-kpi-label">User học (30 ngày)</div>
+        </div>
+    </div>
+    <div class="stats-kpi-card">
+        <div class="stats-kpi-icon purple"><i class="bi bi-journal-bookmark-fill"></i></div>
+        <div>
+            <div class="stats-kpi-value">@s.TotalSubjects</div>
+            <div class="stats-kpi-label">Tổng môn học</div>
+        </div>
+    </div>
+    <div class="stats-kpi-card">
+        <div class="stats-kpi-icon amber"><i class="bi bi-chat-left-text"></i></div>
+        <div>
+            <div class="stats-kpi-value">@(s.TopChatUsers.FirstOrDefault()?.Count ?? 0)</div>
+            <div class="stats-kpi-label">Phiên chat nhiều nhất / user</div>
+        </div>
+    </div>
+</div>
+<div class="stats-charts-row">
+    <div class="stats-chart-card">
+        <div class="stats-chart-title"><i class="bi bi-clock-history"></i> Thời điểm học nhiều (giờ VN)</div>
+        <div class="stats-chart-wrap"><canvas id="peakHoursChart"></canvas></div>
+    </div>
+    <div class="stats-table-card">
+        <h3><i class="bi bi-trophy"></i> Môn học phổ biến (theo câu hỏi)</h3>
+        @if (learn.PopularSubjects.Any())
+        {
+            <table class="stats-table">
+                <thead><tr><th>#</th><th>Môn học</th><th>Câu hỏi</th></tr></thead>
+                <tbody>
+                    @{ var pi = 1; }
+                    @foreach (var item in learn.PopularSubjects)
+                    {
+                        <tr>
+                            <td>@pi</td>
+                            <td style="font-weight:500;">@item.Name</td>
+                            <td><strong>@item.Count</strong></td>
+                        </tr>
+                        pi++;
+                    }
+                </tbody>
+            </table>
+        }
+        else { <div class="stats-empty">Chưa có dữ liệu.</div> }
+    </div>
+</div>
+<div class="stats-tables-row">
+    <div class="stats-table-card">
+        <h3><i class="bi bi-file-earmark-bar-graph"></i> Số câu hỏi trên mỗi tài liệu</h3>
+        @if (learn.QuestionsPerDocument.Any())
+        {
+            <table class="stats-table">
+                <thead><tr><th>#</th><th>Tài liệu</th><th>Câu hỏi</th></tr></thead>
+                <tbody>
+                    @{ var qi = 1; }
+                    @foreach (var item in learn.QuestionsPerDocument)
+                    {
+                        <tr>
+                            <td>@qi</td>
+                            <td style="font-weight:500;">@item.Name</td>
+                            <td><strong>@item.Count</strong></td>
+                        </tr>
+                        qi++;
+                    }
+                </tbody>
+            </table>
+        }
+        else { <div class="stats-empty">Chưa có dữ liệu.</div> }
+    </div>
+    <div class="stats-table-card">
+        <h3><i class="bi bi-people"></i> Top người dùng chat</h3>
+        @if (s.TopChatUsers.Any())
+        {
+            <table class="stats-table">
+                <thead><tr><th>#</th><th>Người dùng</th><th>Phiên</th></tr></thead>
+                <tbody>
+                    @{ var ci = 1; }
+                    @foreach (var u in s.TopChatUsers)
+                    {
+                        <tr>
+                            <td>@ci</td>
+                            <td style="font-weight:500;">@u.DisplayName <span class="stats-role-badge">@u.Role</span></td>
+                            <td><strong>@u.Count</strong></td>
+                        </tr>
+                        ci++;
+                    }
+                </tbody>
+            </table>
+        }
+        else { <div class="stats-empty">Chưa có dữ liệu.</div> }
+    </div>
+</div>
+
+@section Scripts {
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+(function () {
+    function doughnut(id, labels, data, colors) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        new Chart(el, {
+            type: 'doughnut',
+            data: {
+                labels,
+                datasets: [{
+                    data,
+                    backgroundColor: colors.map(c => c + 'BF'),
+                    borderColor: colors,
+                    borderWidth: 1.5
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, padding: 14 } } }
+            }
+        });
+    }
+
+    function bar(id, labels, data, color) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        new Chart(el, {
+            type: 'bar',
+            data: {
+                labels,
+                datasets: [{
+                    data,
+                    backgroundColor: color + 'B3',
+                    borderColor: color,
+                    borderWidth: 1,
+                    borderRadius: 4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
+                plugins: { legend: { display: false } }
+            }
+        });
+    }
+
+    doughnut('roleChart',
+        ['Admin', 'Giảng viên', 'Sinh viên'],
+        [@s.AdminCount, @s.TeacherCount, @s.StudentCount],
+        ['#7c3aed', '#0d9488', '#2563eb']);
+
+    const regData = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(
+        s.RegistrationsByMonth.Select(m => new { label = m.Label, count = m.Count }).ToList()));
+    const regCtx = document.getElementById('regChart');
+    if (regCtx && regData) {
+        new Chart(regCtx, {
+            type: 'line',
+            data: {
+                labels: regData.map(m => m.label),
+                datasets: [{
+                    data: regData.map(m => m.count),
+                    borderColor: '#2563eb',
+                    backgroundColor: 'rgba(37, 99, 235, 0.12)',
+                    fill: true,
+                    tension: 0.3,
+                    borderWidth: 2,
+                    pointRadius: 4,
+                    pointBackgroundColor: '#2563eb'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
+                plugins: { legend: { display: false } }
+            }
+        });
+    }
+
+    bar('docStatusChart',
+        ['Pending', 'Processing', 'Indexed', 'Failed'],
+        [@kb.PendingDocuments, @kb.ProcessingDocuments, @kb.IndexedDocuments, @kb.FailedDocuments],
+        '#2563eb');
+
+    doughnut('contextChart',
+        ['Có ngữ cảnh', 'Không ngữ cảnh'],
+        [@ai.AnswersWithContext, @ai.AnswersWithoutContext],
+        ['#16a34a', '#dc2626']);
+
+    const peakData = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(
+        learn.PeakHours.Select(h => new { label = h.Label, count = h.Count }).ToList()));
+    bar('peakHoursChart',
+        peakData.map(h => h.label),
+        peakData.map(h => h.count),
+        '#0d9488');
+})();
+</script>
+}
