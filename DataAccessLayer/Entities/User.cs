@@ -35,4 +35,19 @@ public class User
     // Navigation
     public ICollection<SubjectTeacher> SubjectTeachers { get; set; } = [];
     public ICollection<ChatSession> ChatSessions { get; set; } = [];
+
+    // ===== SUBSCRIPTION =====
+    [MaxLength(20)]
+    public string SubscriptionPlan { get; set; } = "Basic"; // Free, Basic, Ultra
+
+    public DateTime? SubscriptionExpiry { get; set; } // null = chưa mua / hết hạn
+
+    public int MonthlyQuestionCount { get; set; } = 0; // số câu đã hỏi trong tháng
+
+    public DateTime? QuotaResetDate { get; set; } // ngày reset quota (đầu tháng tiếp theo)
+
+    public int ShortTermQuestionCount { get; set; } = 0; // số câu đã hỏi trong chu kỳ 5 giờ
+
+    public DateTime? ShortTermResetDate { get; set; } // thời điểm reset chu kỳ 5 giờ
+    // ========================
 }

@@ -90,8 +90,12 @@ else
     Console.WriteLine("API Configuration loaded. Gemini key is present.");
 }
 
-// ── HttpClient (for embedding/AI calls) ──────────────────────────────
+// ── HttpClient (for embedding/AI chat calls) ─────────────────────────
 builder.Services.AddHttpClient("EmbeddingClient", client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(120);
+});
+builder.Services.AddHttpClient("GeminiClient", client =>
 {
     client.Timeout = TimeSpan.FromSeconds(120);
 });
@@ -121,14 +125,17 @@ builder.Services.AddScoped<ISubjectService, SubjectService>();
 builder.Services.AddScoped<IDocumentRealtimeNotifier, SignalRDocumentRealtimeNotifier>();
 
 builder.Services.AddScoped<IDocumentService, DocumentService>();
-builder.Services.AddScoped<IChatService>(sp =>
+
+// ── Gemini Chat Service (shared HTTP client, fallback model chain) ─────
+builder.Services.AddSingleton<IGeminiChatService>(sp =>
 {
-    return new ChatService(
-        sp.GetRequiredService<IUnitOfWork>(),
-        sp.GetRequiredService<EmbeddingProviderFactory>(),
-        sp.GetRequiredService<ILogger<ChatService>>(),
-        apiKeys: apiKeys);
+    var httpClientFactory = sp.GetRequiredService<IHttpClientFactory>();
+    var httpClient = httpClientFactory.CreateClient("GeminiClient");
+    var configuration = sp.GetRequiredService<IConfiguration>();
+    return new GeminiChatService(httpClient, apiKeys, configuration);
 });
+
+builder.Services.AddScoped<IChatService, ChatService>();
 builder.Services.AddScoped<IBenchmarkService, BenchmarkService>();
 builder.Services.AddScoped<IStatisticsService, StatisticsService>();
 

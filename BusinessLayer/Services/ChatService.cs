@@ -1,9 +1,6 @@
-using System.Net;
 using System.Text;
-using System.Text.Json;
 using BusinessLayer.DTOs;
 using BusinessLayer.Helpers;
-using BusinessLayer.Models;
 using DataAccessLayer.Entities;
 using DataAccessLayer.Repositories;
 using Microsoft.EntityFrameworkCore;
@@ -27,7 +24,7 @@ public class ChatService : IChatService
     private readonly IUnitOfWork _uow;
     private readonly EmbeddingProviderFactory _embeddingFactory;
     private readonly ILogger<ChatService> _logger;
-    private readonly ApiKeysSettings _apiKeys;
+    private readonly IGeminiChatService _geminiChat;
 
     private const int MaxHistoryMessages = 10; // context window limit
 
@@ -35,12 +32,12 @@ public class ChatService : IChatService
         IUnitOfWork uow,
         EmbeddingProviderFactory embeddingFactory,
         ILogger<ChatService> logger,
-        ApiKeysSettings apiKeys)
+        IGeminiChatService geminiChat)
     {
         _uow = uow;
         _embeddingFactory = embeddingFactory;
         _logger = logger;
-        _apiKeys = apiKeys;
+        _geminiChat = geminiChat;
     }
 
     // ── Session Management ────────────────────────────────────────────
@@ -332,6 +329,8 @@ public class ChatService : IChatService
                 if (user != null)
                 {
                     user.TokensUsed += totalTokens;
+                    user.ShortTermQuestionCount += 1;
+                    user.MonthlyQuestionCount += 1;
                     user.UpdatedAt = DateTime.UtcNow;
                     _uow.Users.Update(user);
                     userTokensUsed = user.TokensUsed;
@@ -367,34 +366,7 @@ public class ChatService : IChatService
         }
     }
 
-    // ── Gemini Chat API Call with 429 Retry ──────────────────────────
-
-    /// <summary>Upgrade deprecated/low-quota models to gemini-2.0-flash-lite (higher RPM).</summary>
-    private static string NormalizeChatModelName(string modelName)
-    {
-        if (string.IsNullOrWhiteSpace(modelName))
-            return "gemini-2.0-flash-lite";
-
-        return modelName.Trim().ToLowerInvariant() switch
-        {
-            "gemini-1.0-flash-lite" or "gemini-1.5-flash" or "gemini-1.5-flash-lite"
-                or "gemini-2.0-flash" or "gemini-pro" => "gemini-2.0-flash-lite",
-            _ => modelName.Trim()
-        };
-    }
-
-    private static int GetRateLimitDelayMs(HttpResponseMessage? response, int attempt)
-    {
-        // Free tier often needs longer waits — start at 5s, exponential backoff
-        var delayMs = Math.Max(5000, 5000 * (int)Math.Pow(2, attempt - 1));
-        if (response?.Headers.TryGetValues("Retry-After", out var values) == true
-            && int.TryParse(values.FirstOrDefault(), out var retryAfter))
-        {
-            delayMs = Math.Max(delayMs, retryAfter * 1000);
-        }
-
-        return delayMs;
-    }
+    // ── Gemini Chat — delegate to IGeminiChatService ─────────────────────
 
     private async Task<(string Text, int TotalTokens)> CallGeminiWithRetryAsync(
         string modelName,
@@ -403,105 +375,45 @@ public class ChatService : IChatService
         string userQuestion,
         CancellationToken cancellationToken)
     {
-        modelName = NormalizeChatModelName(modelName);
-        var url = $"https://generativelanguage.googleapis.com/v1beta/models/{modelName}:generateContent?key={_apiKeys.Gemini}";
-
-        // Build contents array (history + current question)
-        var contents = new List<object>();
+        // Build full prompt: system instruction + history + current question
+        var promptBuilder = new StringBuilder();
+        promptBuilder.AppendLine(systemPrompt);
+        promptBuilder.AppendLine();
         foreach (var (role, content) in history)
         {
-            var geminiRole = role == "assistant" ? "model" : "user";
-            contents.Add(new { role = geminiRole, parts = new[] { new { text = content } } });
+            var label = role == "assistant" ? "Assistant" : "User";
+            promptBuilder.AppendLine($"{label}: {content}");
         }
-        contents.Add(new { role = "user", parts = new[] { new { text = userQuestion } } });
+        promptBuilder.AppendLine($"User: {userQuestion}");
+        promptBuilder.AppendLine("Assistant:");
 
-        var payload = new
-        {
-            system_instruction = new { parts = new[] { new { text = systemPrompt } } },
-            contents
-        };
+        var answer = await _geminiChat.GenerateAnswerAsync(promptBuilder.ToString(), modelName);
 
-        using var httpClient = new HttpClient();
-        int attempt = 0;
-        const int maxRetries = 5;
+        if (answer.StartsWith("⚠️") || answer.StartsWith("Lỗi khi gọi AI"))
+            throw new RateLimitException(answer);
 
-        while (true)
-        {
-            try
-            {
-                var json = JsonSerializer.Serialize(payload);
-                using var content = new StringContent(json, Encoding.UTF8, "application/json");
-                using var response = await httpClient.PostAsync(url, content, cancellationToken);
-
-                // Handle 429 Rate Limit
-                if (response.StatusCode == HttpStatusCode.TooManyRequests)
-                {
-                    attempt++;
-                    if (attempt >= maxRetries)
-                        throw new RateLimitException("Gemini chat API rate limit exceeded after max retries");
-
-                    var delayMs = GetRateLimitDelayMs(response, attempt);
-                    _logger.LogWarning("Gemini API rate limit (429) hit. Retry attempt {Attempt}/{MaxRetries} waiting {Delay}ms before retrying.", attempt, maxRetries, delayMs);
-                    await Task.Delay(delayMs, cancellationToken);
-                    continue;
-                }
-
-                // Handle 503 Service Unavailable (overloaded)
-                if (response.StatusCode == HttpStatusCode.ServiceUnavailable)
-                {
-                    attempt++;
-                    if (attempt >= maxRetries) 
-                    {
-                        _logger.LogError("Gemini API is unavailable after {MaxRetries} attempts.", maxRetries);
-                        throw new Exception("Gemini API unavailable");
-                    }
-                    var retryDelay = 3000 * attempt;
-                    _logger.LogWarning("Gemini API service unavailable (503). Retrying attempt {Attempt}/{MaxRetries} in {Delay}ms.", attempt, maxRetries, retryDelay);
-                    await Task.Delay(retryDelay, cancellationToken);
-                    continue;
-                }
-
-                response.EnsureSuccessStatusCode();
-
-                var body = await response.Content.ReadAsStringAsync(cancellationToken);
-                return ParseGeminiResponse(body);
-            }
-            catch (RateLimitException) { throw; }
-            catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.TooManyRequests)
-            {
-                attempt++;
-                if (attempt >= maxRetries) throw;
-                await Task.Delay(2000 * (int)Math.Pow(2, attempt), cancellationToken);
-            }
-        }
+        // Estimate tokens (rough: 1 token ≈ 4 chars)
+        var totalTokens = (promptBuilder.Length + answer.Length) / 4;
+        return (answer, totalTokens);
     }
 
-    private static (string Text, int TotalTokens) ParseGeminiResponse(string json)
+    /// <summary>Build a single-string prompt from system prompt + history + current question.</summary>
+    private static string BuildGeminiPrompt(
+        string systemPrompt,
+        List<(string Role, string Content)> history,
+        string userQuestion)
     {
-        using var doc = JsonDocument.Parse(json);
-        var root = doc.RootElement;
-
-        var text = root
-            .GetProperty("candidates")[0]
-            .GetProperty("content")
-            .GetProperty("parts")[0]
-            .GetProperty("text")
-            .GetString() ?? "No response generated.";
-
-        var totalTokens = 0;
-        if (root.TryGetProperty("usageMetadata", out var usage))
+        var sb = new StringBuilder();
+        sb.AppendLine(systemPrompt);
+        sb.AppendLine();
+        foreach (var (role, content) in history)
         {
-            if (usage.TryGetProperty("totalTokenCount", out var totalProp) && totalProp.TryGetInt32(out var total))
-                totalTokens = total;
-            else
-            {
-                var prompt = usage.TryGetProperty("promptTokenCount", out var p) && p.TryGetInt32(out var pv) ? pv : 0;
-                var candidates = usage.TryGetProperty("candidatesTokenCount", out var c) && c.TryGetInt32(out var cv) ? cv : 0;
-                totalTokens = prompt + candidates;
-            }
+            var label = role == "assistant" ? "Assistant" : "User";
+            sb.AppendLine($"{label}: {content}");
         }
-
-        return (text, totalTokens);
+        sb.AppendLine($"User: {userQuestion}");
+        sb.AppendLine("Assistant:");
+        return sb.ToString();
     }
 
     /// <summary>Send answer word-by-word to client for typing effect (incremental chunks).</summary>
@@ -555,17 +467,12 @@ public class ChatService : IChatService
                 };
             }
 
-            // 2. Retrieve all indexed chunks for this subject (filtered by SelectedDocIds if any)
+            // 2. Retrieve all indexed chunks for this subject (ignore SelectedDocIds per requirements)
             var subjectId = session.SubjectId;
             var query = _uow.DocumentChunks.Query()
                 .Where(c => c.Document.Chapter.SubjectId == subjectId
                          && c.EmbeddingModelId == session.EmbeddingModelId
                          && c.Document.Status == "Indexed");
-
-            if (dto.SelectedDocIds != null && dto.SelectedDocIds.Count > 0)
-            {
-                query = query.Where(c => dto.SelectedDocIds.Contains(c.DocumentId));
-            }
 
             var allChunks = await query
                 .Select(c => new
@@ -632,11 +539,11 @@ public class ChatService : IChatService
             if (dto.RestrictToDocs)
             {
                 systemPrompt = $"""
-                    You are an intelligent learning assistant for a course management system.
-                    Answer the student's question based ONLY on the provided context below.
-                    If the context doesn't contain enough information, say so clearly.
-                    Always cite which context number(s) you used.
-                    Be concise, accurate, and educational.
+                    Bạn là một trợ lý AI thông minh cho hệ thống học tập.
+                    BẠN CHỈ ĐƯỢC PHÉP trả lời dựa trên nội dung tài liệu (CONTEXT) bên dưới. Tuyệt đối không được sử dụng kiến thức bên ngoài.
+                    Nếu ngữ cảnh không có thông tin để trả lời, hãy nói: "Tôi không tìm thấy thông tin trong tài liệu".
+                    Nếu người dùng yêu cầu thay đổi ngôn ngữ (vd: dịch sang tiếng Anh) hoặc định dạng câu trả lời (vd: lập bảng, tóm tắt), hãy ÁP DỤNG yêu cầu đó cho nội dung lấy từ CONTEXT. Bạn không được từ chối việc định dạng nếu trong CONTEXT có dữ liệu.
+                    BẮT BUỘC PHẢI TRÍCH DẪN TÊN TÀI LIỆU (ví dụ: [Tên tài liệu]) ở mỗi ý bạn lấy từ ngữ cảnh.
 
                     === CONTEXT ===
                     {contextBuilder}
@@ -646,10 +553,10 @@ public class ChatService : IChatService
             else
             {
                 systemPrompt = $"""
-                    You are an intelligent learning assistant for a course management system.
-                    You can answer the student's question using your own knowledge, but you should also refer to the provided context below if it's helpful.
-                    If you use the provided context, cite which context number(s) you used.
-                    Be concise, accurate, and educational.
+                    Bạn là một trợ lý AI thông minh cho hệ thống học tập.
+                    Bạn có thể sử dụng kiến thức bên ngoài, nhưng hãy ưu tiên sử dụng nội dung tài liệu (CONTEXT) bên dưới nếu có liên quan.
+                    Nếu người dùng yêu cầu thay đổi ngôn ngữ (vd: dịch sang tiếng Anh) hoặc định dạng câu trả lời, hãy thực hiện theo.
+                    Nếu bạn sử dụng thông tin từ CONTEXT, BẮT BUỘC PHẢI TRÍCH DẪN TÊN TÀI LIỆU (ví dụ: [Tên tài liệu]) ở mỗi ý bạn lấy từ ngữ cảnh.
 
                     === CONTEXT ===
                     {contextBuilder}
@@ -660,23 +567,31 @@ public class ChatService : IChatService
             // Brief pause between embed + generate to avoid burst rate limits on free tier
             await Task.Delay(1200, cancellationToken);
 
-            // 6. Call Gemini API (non-streaming — more reliable on free tier) + simulate typing
-            var chatModel = NormalizeChatModelName(session.AiModel.ModelName);
-            if (chatModel != session.AiModel.ModelName)
+            // 6. Call Gemini API via streaming (real SSE) or fallback to blocking
+            var chatModel = session.AiModel.ModelName;
+            string fullAnswer;
+            try
             {
-                _logger.LogWarning(
-                    "Chat model '{OldModel}' upgraded to '{NewModel}' for higher rate limit.",
-                    session.AiModel.ModelName, chatModel);
+                var sb = new StringBuilder();
+                await foreach (var chunk in _geminiChat.GenerateStreamingAnswerAsync(
+                    BuildGeminiPrompt(systemPrompt, history.Select(h => (h.Role, h.Content)).ToList(), dto.Question),
+                    chatModel, cancellationToken))
+                {
+                    sb.Append(chunk);
+                    await onChunk(chunk);
+                }
+                fullAnswer = sb.Length > 0 ? sb.ToString() : "No response generated.";
             }
-
-            var (fullAnswer, _) = await CallGeminiWithRetryAsync(
-                chatModel,
-                systemPrompt,
-                history.Select(h => (h.Role, h.Content)).ToList(),
-                dto.Question,
-                cancellationToken);
-
-            await EmitAnswerInChunksAsync(fullAnswer, onChunk, cancellationToken);
+            catch
+            {
+                // Fallback to blocking if streaming fails
+                var (fallbackAnswer, _) = await CallGeminiWithRetryAsync(
+                    chatModel, systemPrompt,
+                    history.Select(h => (h.Role, h.Content)).ToList(),
+                    dto.Question, cancellationToken);
+                fullAnswer = fallbackAnswer;
+                await EmitAnswerInChunksAsync(fullAnswer, onChunk, cancellationToken);
+            }
 
             stopwatch.Stop();
 
@@ -716,12 +631,21 @@ public class ChatService : IChatService
                 .ToList();
             await _uow.ChatCitations.AddRangeAsync(citations);
 
-            // Update session last activity
+            // Update session last activity & User Question Counts
             var sessionEntity = await _uow.ChatSessions.GetByIdAsync(dto.ChatSessionId);
             if (sessionEntity != null)
             {
                 sessionEntity.LastActivityAt = DateTime.UtcNow;
                 _uow.ChatSessions.Update(sessionEntity);
+
+                var user = await _uow.Users.GetByIdAsync(sessionEntity.UserId);
+                if (user != null)
+                {
+                    user.ShortTermQuestionCount += 1;
+                    user.MonthlyQuestionCount += 1;
+                    user.UpdatedAt = DateTime.UtcNow;
+                    _uow.Users.Update(user);
+                }
             }
             await _uow.SaveChangesAsync();
 
@@ -759,107 +683,7 @@ public class ChatService : IChatService
         }
     }
 
-    private async Task<string> CallGeminiStreamingAsync(
-        string modelName,
-        string systemPrompt,
-        List<(string Role, string Content)> history,
-        string userQuestion,
-        Func<string, Task> onChunk,
-        CancellationToken cancellationToken)
-    {
-        modelName = NormalizeChatModelName(modelName);
-        var url = $"https://generativelanguage.googleapis.com/v1beta/models/{modelName}:streamGenerateContent?alt=sse&key={_apiKeys.Gemini}";
 
-        var contents = new List<object>();
-        foreach (var (role, content) in history)
-        {
-            var geminiRole = role == "assistant" ? "model" : "user";
-            contents.Add(new { role = geminiRole, parts = new[] { new { text = content } } });
-        }
-        contents.Add(new { role = "user", parts = new[] { new { text = userQuestion } } });
-
-        var payload = new
-        {
-            system_instruction = new { parts = new[] { new { text = systemPrompt } } },
-            contents
-        };
-
-        var json = JsonSerializer.Serialize(payload);
-
-        int attempt = 0;
-        const int maxStreamingRetries = 2;
-
-        while (true)
-        {
-            using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(120) };
-            using var requestContent = new StringContent(json, Encoding.UTF8, "application/json");
-            using var request = new HttpRequestMessage(HttpMethod.Post, url) { Content = requestContent };
-            using var response = await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
-
-            // Handle 429 Rate Limit — retry streaming briefly, then fall back to generateContent
-            if (response.StatusCode == HttpStatusCode.TooManyRequests)
-            {
-                attempt++;
-                if (attempt >= maxStreamingRetries)
-                {
-                    _logger.LogWarning(
-                        "Streaming rate limited after {Attempt} attempts — falling back to generateContent.",
-                        attempt);
-                    var (fallbackText, _) = await CallGeminiWithRetryAsync(
-                        modelName, systemPrompt, history, userQuestion, cancellationToken);
-                    await onChunk(fallbackText);
-                    return fallbackText;
-                }
-
-                var delayMs = GetRateLimitDelayMs(response, attempt);
-                _logger.LogWarning(
-                    "Gemini streaming API rate limit (429) hit. Retry attempt {Attempt}/{MaxRetries} waiting {Delay}ms.",
-                    attempt, maxStreamingRetries, delayMs);
-                await Task.Delay(delayMs, cancellationToken);
-                continue;
-            }
-
-            response.EnsureSuccessStatusCode();
-
-            var fullText = new StringBuilder();
-            using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
-            using var reader = new System.IO.StreamReader(stream);
-
-
-        while (!reader.EndOfStream && !cancellationToken.IsCancellationRequested)
-        {
-            var line = await reader.ReadLineAsync();
-            if (string.IsNullOrWhiteSpace(line)) continue;
-            if (!line.StartsWith("data: ")) continue;
-
-            var dataJson = line["data: ".Length..];
-            if (dataJson == "[DONE]") break;
-
-            try
-            {
-                using var doc = JsonDocument.Parse(dataJson);
-                var text = doc.RootElement
-                    .GetProperty("candidates")[0]
-                    .GetProperty("content")
-                    .GetProperty("parts")[0]
-                    .GetProperty("text")
-                    .GetString();
-
-                if (!string.IsNullOrEmpty(text))
-                {
-                    fullText.Append(text);
-                    await onChunk(text);
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogDebug(ex, "Could not parse SSE chunk: {Line}", line);
-            }
-        }
-
-            return fullText.Length > 0 ? fullText.ToString() : "No response generated.";
-        }
-    }
 
     public async Task<bool> DeleteSessionAsync(int sessionId, int userId)
     {

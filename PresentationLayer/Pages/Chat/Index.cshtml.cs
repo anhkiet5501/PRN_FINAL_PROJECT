@@ -40,6 +40,10 @@ public class IndexModel : PageModel
     public record AiModelOption(int AiModelId, string ModelName, string Provider);
     public IEnumerable<AiModelOption> AvailableAiModels { get; set; } = [];
 
+    public string UserRole { get; set; } = string.Empty;
+    public string SubscriptionPlan { get; set; } = "Free";
+    public int ShortTermQuestionCount { get; set; } = 0;
+
     // ── Helpers ───────────────────────────────────────────────────────
     private int GetUserId() =>
         int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
@@ -48,6 +52,16 @@ public class IndexModel : PageModel
     public async Task OnGetAsync(int? sessionId)
     {
         var userId = GetUserId();
+        
+        // Load User data for limits
+        var user = await _uow.Users.GetByIdAsync(userId);
+        if (user != null)
+        {
+            UserRole = user.Role;
+            SubscriptionPlan = user.SubscriptionPlan;
+            ShortTermQuestionCount = user.ShortTermQuestionCount;
+        }
+
         Sessions = await _chatService.GetUserSessionsAsync(userId);
 
         if (sessionId.HasValue)
