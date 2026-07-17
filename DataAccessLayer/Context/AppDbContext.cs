@@ -10,6 +10,7 @@ public class AppDbContext : DbContext
     // ── User Group ──────────────────────────────────────────────────
     public DbSet<User> Users => Set<User>();
     public DbSet<SubjectTeacher> SubjectTeachers => Set<SubjectTeacher>();
+    public DbSet<PaymentTransaction> PaymentTransactions => Set<PaymentTransaction>();
 
     // ── Document Group ───────────────────────────────────────────────
     public DbSet<Subject> Subjects => Set<Subject>();
@@ -44,6 +45,15 @@ public class AppDbContext : DbContext
             e.HasIndex(u => u.Username).IsUnique();
             e.Property(u => u.Role).HasDefaultValue("Student");
             e.Property(u => u.IsActive).HasDefaultValue(true);
+        });
+
+        modelBuilder.Entity<PaymentTransaction>(e =>
+        {
+            e.HasIndex(p => p.OrderId).IsUnique();
+            e.HasOne(p => p.User)
+             .WithMany()
+             .HasForeignKey(p => p.UserId)
+             .OnDelete(DeleteBehavior.Cascade);
         });
 
         // ── SubjectTeacher (composite unique) ───────────────────────

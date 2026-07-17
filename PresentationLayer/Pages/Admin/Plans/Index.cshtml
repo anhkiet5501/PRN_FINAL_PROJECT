@@ -1,0 +1,97 @@
+@page
+@model PresentationLayer.Pages.Admin.Plans.IndexModel
+@{
+    ViewData["Title"] = "Quản lý gói đăng ký";
+    ViewData["ActivePage"] = "Plans";
+}
+
+<div class="page-header-row">
+    <h1 class="dashboard-title" style="margin-bottom:0;">QUẢN LÝ GÓI ĐĂNG KÝ</h1>
+</div>
+
+@if (TempData["SuccessMessage"] != null)
+{
+    <div class="alert alert-success">@TempData["SuccessMessage"]</div>
+}
+
+<div class="stats-kpi-row" style="display:grid; grid-template-columns:repeat(3,1fr); gap:1rem; margin:1rem 0;">
+    <div class="card" style="padding:1rem;">
+        <div style="font-size:0.75rem; color:var(--text-muted); text-transform:uppercase;">Tổng giao dịch</div>
+        <div style="font-size:1.6rem; font-weight:800;">@Model.TotalPayments</div>
+    </div>
+    <div class="card" style="padding:1rem;">
+        <div style="font-size:0.75rem; color:var(--text-muted); text-transform:uppercase;">Thành công</div>
+        <div style="font-size:1.6rem; font-weight:800; color:#059669;">@Model.SuccessPayments</div>
+    </div>
+    <div class="card" style="padding:1rem;">
+        <div style="font-size:0.75rem; color:var(--text-muted); text-transform:uppercase;">Doanh thu</div>
+        <div style="font-size:1.6rem; font-weight:800;">@Model.TotalRevenue.ToString("N0") đ</div>
+    </div>
+</div>
+
+<h3 class="card-title" style="margin-top:1.5rem;">Danh sách gói</h3>
+<div class="grid-3" style="display:grid; grid-template-columns:repeat(3,1fr); gap:1rem; margin-bottom:1.5rem;">
+    @foreach (var plan in Model.Plans)
+    {
+        <div class="card" style="padding:1.25rem; border:2px solid #1e293b;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
+                <strong style="font-size:1.1rem;">@plan.Name</strong>
+                <span class="badge badge-student">@(plan.IsActive ? "Đang bán" : "Tạm ẩn")</span>
+            </div>
+            <div style="font-size:1.4rem; font-weight:800; margin-bottom:0.5rem;">
+                @(plan.Price == 0 ? "0 đ" : plan.Price.ToString("N0") + " đ/tháng")
+            </div>
+            <p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:0.75rem;">@plan.Description</p>
+            <ul style="font-size:0.82rem; padding-left:1rem; margin:0;">
+                <li>@plan.ShortTermLimit câu / 5 giờ</li>
+                <li>@plan.MonthlyLimit câu / tháng</li>
+            </ul>
+        </div>
+    }
+</div>
+
+<h3 class="card-title">Lịch sử thanh toán VNPay (50 gần nhất)</h3>
+<div class="brutalist-table-container">
+    <table class="brutalist-table">
+        <thead>
+            <tr>
+                <th>Mã đơn</th>
+                <th>Người dùng</th>
+                <th>Gói</th>
+                <th>Số tiền</th>
+                <th>Trạng thái</th>
+                <th>Thời gian</th>
+            </tr>
+        </thead>
+        <tbody>
+            @if (!Model.RecentPayments.Any())
+            {
+                <tr><td colspan="6" style="text-align:center; color:var(--text-muted);">Chưa có giao dịch</td></tr>
+            }
+            @foreach (var payment in Model.RecentPayments)
+            {
+                <tr>
+                    <td>@payment.OrderId</td>
+                    <td>@payment.Username</td>
+                    <td>@payment.PlanCode</td>
+                    <td>@payment.Amount.ToString("N0") đ</td>
+                    <td>
+                        @if (payment.Status == "Success")
+                        {
+                            <span style="color:#059669; font-weight:600;">Thành công</span>
+                        }
+                        else if (payment.Status == "Pending")
+                        {
+                            <span style="color:#d97706; font-weight:600;">Chờ xử lý</span>
+                        }
+                        else
+                        {
+                            <span style="color:#dc2626; font-weight:600;">Thất bại</span>
+                        }
+                    </td>
+                    <td>@(payment.PaidAt?.ToLocalTime().ToString("dd/MM/yyyy HH:mm") ?? payment.CreatedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm"))</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
