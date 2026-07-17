@@ -244,18 +244,56 @@
 /* Pass/Fail badge on item */
 .tc-pass  { color: #16a34a; font-size: 0.7rem; font-weight: 700; }
 .tc-fail  { color: #dc2626; font-size: 0.7rem; font-weight: 700; }
+.status-pill.pending   { background: #fef9c3; color: #92400e; }
+.status-pill.running   { background: #dbeafe; color: #1e40af; }
+.status-pill.completed { background: #dcfce7; color: #166534; }
+.status-pill.failed    { background: #fee2e2; color: #991b1b; }
 </style>
 
 <!-- Header -->
 <div class="bd-header">
     <div>
-        <h1 class="dashboard-title" style="margin-bottom:0.25rem;">KẾT QUẢ BENCHMARK</h1>
-        <p class="page-subtitle" style="margin-bottom:0;">Chi tiết đánh giá Faithfulness &amp; Relevance</p>
+        <h1 class="dashboard-title" style="margin-bottom:0.25rem;">@Model.Experiment?.ExperimentName</h1>
+        <p class="page-subtitle" style="margin-bottom:0;">
+            @Model.Experiment?.SubjectName · @Model.Experiment?.AiModelName · @Model.Experiment?.ChunkingStrategyName
+        </p>
     </div>
-    <a href="/Benchmark?subjectId=@Model.SubjectId" class="bd-back-btn">
-        <i class="bi bi-arrow-left"></i> Trở về
-    </a>
+    <div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap;">
+        @if (Model.Experiment?.Status == "Pending" && Model.TestSets.Any())
+        {
+            <form method="post" asp-page-handler="RunExperiment" style="margin:0;">
+                @Html.AntiForgeryToken()
+                <button type="submit" class="btn btn-primary" onclick="return confirm('Chạy benchmark với @Model.TestSets.Count() test case? Quá trình có thể mất vài phút.');">
+                    <i class="bi bi-play-fill"></i> Chạy Benchmark
+                </button>
+            </form>
+        }
+        <a href="/Benchmark?subjectId=@Model.SubjectId" class="bd-back-btn">
+            <i class="bi bi-arrow-left"></i> Trở về
+        </a>
+    </div>
 </div>
+
+@if (TempData["Success"] != null)
+{
+    <div class="alert alert-success">@TempData["Success"]</div>
+}
+@if (TempData["Error"] != null)
+{
+    <div class="alert alert-error">@TempData["Error"]</div>
+}
+
+@if (Model.Experiment != null)
+{
+    <div style="margin-bottom:1rem; display:flex; gap:0.5rem; flex-wrap:wrap; align-items:center;">
+        <span class="status-pill @(Model.Experiment.Status.ToLower())" style="display:inline-flex;align-items:center;gap:0.3rem;padding:0.25rem 0.65rem;border-radius:999px;font-size:0.75rem;font-weight:700;">
+            <i class="bi bi-activity"></i> @Model.Experiment.Status
+        </span>
+        <span style="font-size:0.78rem;color:var(--text-muted);">
+            Embedding: <strong>@Model.Experiment.EmbeddingModelName</strong>
+        </span>
+    </div>
+}
 
 <!-- KPI Cards -->
 <div class="bd-kpi-row">
@@ -305,6 +343,35 @@
             <div class="bd-chart-wrap">
                 <canvas id="scatterChart"></canvas>
             </div>
+        </div>
+    </div>
+}
+
+<!-- Pending Test Cases (before run) -->
+@if (!Model.Results.Any() && Model.TestSets.Any())
+{
+    <div class="tc-card" style="margin-bottom:1.25rem;">
+        <div class="tc-card-header">
+            <h3><i class="bi bi-hourglass-split" style="color:#d97706; margin-right:0.35rem;"></i>Test Cases chờ chạy (@Model.TestSets.Count())</h3>
+        </div>
+        <div class="tc-list">
+            @{int pendingIdx = 0;}
+            @foreach (var tc in Model.TestSets)
+            {
+                pendingIdx++;
+                <div class="tc-item">
+                    <div class="tc-question">
+                        <span class="tc-q-badge">Q@pendingIdx</span>
+                        <span>@tc.Question</span>
+                    </div>
+                    <div class="tc-answers">
+                        <div class="tc-ans-block expected">
+                            <div class="tc-ans-label"><i class="bi bi-bookmark-check"></i> Expected</div>
+                            @tc.ExpectedAnswer
+                        </div>
+                    </div>
+                </div>
+            }
         </div>
     </div>
 }
@@ -396,7 +463,15 @@
 
 <!-- Add Test Case -->
 <div class="add-tc-form">
-    <h3><i class="bi bi-plus-circle" style="color:var(--accent); margin-right:0.4rem;"></i>Thêm Test Case Mới</h3>
+    <div style="display:flex; justify-content:space-between; align-items:center; gap:0.75rem; flex-wrap:wrap; margin-bottom:1rem;">
+        <h3 style="margin:0;"><i class="bi bi-plus-circle" style="color:var(--accent); margin-right:0.4rem;"></i>Thêm Test Case</h3>
+        <form method="post" asp-page-handler="AddSampleTestCases" style="margin:0;">
+            @Html.AntiForgeryToken()
+            <button type="submit" class="btn btn-secondary" style="font-size:0.8rem;">
+                <i class="bi bi-magic"></i> Thêm 5 test case mẫu
+            </button>
+        </form>
+    </div>
     <form method="post" asp-page-handler="AddTestCase">
         @Html.AntiForgeryToken()
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem;">
