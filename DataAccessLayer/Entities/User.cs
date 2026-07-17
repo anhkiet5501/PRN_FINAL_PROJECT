@@ -38,7 +38,7 @@ public class User
 
     // ===== SUBSCRIPTION =====
     [MaxLength(20)]
-    public string SubscriptionPlan { get; set; } = "Basic"; // Free, Basic, Ultra
+    public string SubscriptionPlan { get; set; } = "Basic"; // Basic, Pro, Ultra
 
     public DateTime? SubscriptionExpiry { get; set; } // null = chưa mua / hết hạn
 

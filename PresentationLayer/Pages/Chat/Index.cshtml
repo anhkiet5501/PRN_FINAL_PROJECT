@@ -1,5 +1,6 @@
 @page "{sessionId:int?}"
 @model PRN222_Assignment2.Pages.Chat.IndexModel
+@using BusinessLayer.Services
 @{
     ViewData["Title"] = "Chat AI";
     ViewData["ActivePage"] = "Chat";
@@ -449,18 +450,20 @@
 
         @if (Model.UserRole == "Student")
         {
-            var maxShort = Model.SubscriptionPlan == "Ultra" ? 1000 : (Model.SubscriptionPlan == "Basic" ? 50 : 10);
-            var limitPercent = Math.Min(100, Math.Max(0, (double)Model.ShortTermQuestionCount / maxShort * 100));
+            var planCode = Model.SubscriptionPlan == "Free" ? SubscriptionPlanCatalog.Basic : Model.SubscriptionPlan;
+            var maxShort = SubscriptionPlanCatalog.GetShortTermLimit(planCode);
+            var limitPercent = Math.Min(100, Math.Max(0, (double)Model.ShortTermQuestionCount / Math.Max(1, maxShort) * 100));
 
             <div class="usage-box">
                 <div class="usage-plan">
-                    <i class="bi bi-crown-fill"></i> @Model.SubscriptionPlan
+                    <i class="bi bi-crown-fill"></i> @planCode
                 </div>
                 <div class="usage-title">USAGE CỦA TÀI KHOẢN</div>
                 <div class="usage-bar-bg">
                     <div class="usage-bar-fill" style="width: @limitPercent%;"></div>
                 </div>
                 <div class="usage-text">@Model.ShortTermQuestionCount / @maxShort câu hỏi (chu kỳ 5h)</div>
+                <a href="/Subscription" style="display:block; margin-top:0.75rem; font-size:0.78rem; font-weight:600;">Nâng cấp gói →</a>
             </div>
         }
     </div>

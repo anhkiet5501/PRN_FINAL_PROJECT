@@ -41,7 +41,7 @@ public class IndexModel : PageModel
     public IEnumerable<AiModelOption> AvailableAiModels { get; set; } = [];
 
     public string UserRole { get; set; } = string.Empty;
-    public string SubscriptionPlan { get; set; } = "Free";
+    public string SubscriptionPlan { get; set; } = SubscriptionPlanCatalog.Basic;
     public int ShortTermQuestionCount { get; set; } = 0;
 
     // ── Helpers ───────────────────────────────────────────────────────

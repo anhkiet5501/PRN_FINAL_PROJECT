@@ -1,0 +1,80 @@
+@page
+@model PresentationLayer.Pages.Subscription.IndexModel
+@{
+    ViewData["Title"] = "Gói đăng ký";
+    ViewData["ActivePage"] = "Subscription";
+}
+
+<div class="page-header-row">
+    <h1 class="dashboard-title" style="margin-bottom:0;">GÓI ĐĂNG KÝ CHAT AI</h1>
+</div>
+<p class="page-subtitle">Chọn gói phù hợp để sử dụng trợ lý học tập AI</p>
+
+@if (TempData["SuccessMessage"] != null)
+{
+    <div class="alert alert-success">@TempData["SuccessMessage"]</div>
+}
+@if (TempData["ErrorMessage"] != null)
+{
+    <div class="alert alert-error">@TempData["ErrorMessage"]</div>
+}
+
+<div class="card" style="padding:1rem 1.25rem; margin-bottom:1.25rem;">
+    <strong>Gói hiện tại:</strong> @Model.CurrentPlan
+    @if (Model.SubscriptionExpiry.HasValue)
+    {
+        <span style="margin-left:0.75rem; color:var(--text-muted);">
+            Hết hạn: @Model.SubscriptionExpiry.Value.ToLocalTime().ToString("dd/MM/yyyy")
+        </span>
+    }
+</div>
+
+<div style="display:grid; grid-template-columns:repeat(3,1fr); gap:1rem;">
+    @foreach (var plan in Model.Plans)
+    {
+        var isCurrent = string.Equals(Model.CurrentPlan, plan.Code, StringComparison.OrdinalIgnoreCase);
+        <div class="card" style="padding:1.5rem; border:2px solid @(isCurrent ? "#2563eb" : "#1e293b"); position:relative;">
+            @if (isCurrent)
+            {
+                <span style="position:absolute; top:0.75rem; right:0.75rem; background:#eff6ff; color:#1d4ed8; font-size:0.72rem; font-weight:700; padding:0.2rem 0.5rem; border-radius:999px;">ĐANG DÙNG</span>
+            }
+            <h3 style="margin:0 0 0.5rem;">@plan.Name</h3>
+            <div style="font-size:1.6rem; font-weight:800; margin-bottom:0.75rem;">
+                @(plan.Price == 0 ? "0 đ" : plan.Price.ToString("N0") + " đ/tháng")
+            </div>
+            <p style="font-size:0.85rem; color:var(--text-muted); min-height:2.5rem;">@plan.Description</p>
+            <ul style="font-size:0.82rem; padding-left:1rem; margin:0 0 1.25rem;">
+                <li>@plan.ShortTermLimit câu / 5 giờ</li>
+                <li>@plan.MonthlyLimit câu / tháng</li>
+            </ul>
+
+            @if (plan.Code == "Basic")
+            {
+                <form method="post" asp-page-handler="ActivateBasic">
+                    @Html.AntiForgeryToken()
+                    <button type="submit" class="soft-btn btn-light" style="width:100%;" @(isCurrent ? "disabled" : "")>
+                        @(isCurrent ? "Đang sử dụng" : "Kích hoạt miễn phí")
+                    </button>
+                </form>
+            }
+            else
+            {
+                <form method="post" asp-page-handler="Purchase">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="planCode" value="@plan.Code" />
+                    <button type="submit" class="soft-btn btn-primary" style="width:100%;">
+                        @(plan.Price == 0 ? "Kích hoạt" : "Thanh toán VNPay")
+                    </button>
+                </form>
+            }
+        </div>
+    }
+</div>
+
+<style>
+@@media (max-width: 960px) {
+    div[style*="grid-template-columns:repeat(3,1fr)"] {
+        grid-template-columns: 1fr !important;
+    }
+}
+</style>

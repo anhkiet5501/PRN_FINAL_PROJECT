@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
+using BusinessLayer.Services;
 
 namespace PresentationLayer.Pages.Admin.Subscriptions;
 
@@ -18,8 +19,8 @@ public class IndexModel : PageModel
     }
 
     public int TotalStudents { get; set; }
-    public int FreeCount { get; set; }
     public int BasicCount { get; set; }
+    public int ProCount { get; set; }
     public int UltraCount { get; set; }
 
     public List<User> Students { get; set; } = [];
@@ -29,9 +30,9 @@ public class IndexModel : PageModel
         var query = _db.Users.Where(u => u.Role == "Student");
 
         TotalStudents = await query.CountAsync();
-        FreeCount = await query.CountAsync(u => u.SubscriptionPlan == "Free");
-        BasicCount = await query.CountAsync(u => u.SubscriptionPlan == "Basic");
-        UltraCount = await query.CountAsync(u => u.SubscriptionPlan == "Ultra");
+        BasicCount = await query.CountAsync(u => u.SubscriptionPlan == SubscriptionPlanCatalog.Basic || u.SubscriptionPlan == "Free");
+        ProCount = await query.CountAsync(u => u.SubscriptionPlan == SubscriptionPlanCatalog.Pro);
+        UltraCount = await query.CountAsync(u => u.SubscriptionPlan == SubscriptionPlanCatalog.Ultra);
 
         Students = await query
             .OrderByDescending(u => u.CreatedAt)
@@ -43,13 +44,12 @@ public class IndexModel : PageModel
         var user = await _db.Users.FindAsync(userId);
         if (user != null && user.Role == "Student")
         {
-            user.SubscriptionPlan = plan;
-            if (plan == "Ultra")
-            {
-                user.SubscriptionExpiry = DateTime.UtcNow.AddDays(30); // Giả lập Ultra 1 tháng
-            }
+            user.SubscriptionPlan = plan == "Free" ? SubscriptionPlanCatalog.Basic : plan;
+            user.SubscriptionExpiry = plan is SubscriptionPlanCatalog.Pro or SubscriptionPlanCatalog.Ultra
+                ? DateTime.UtcNow.AddDays(30)
+                : null;
             await _db.SaveChangesAsync();
-            TempData["SuccessMessage"] = $"Đã cập nhật gói của {user.Username} thành {plan}";
+            TempData["SuccessMessage"] = $"Đã cập nhật gói của {user.Username} thành {user.SubscriptionPlan}";
         }
         return RedirectToPage();
     }
@@ -72,10 +72,10 @@ public class IndexModel : PageModel
         var user = await _db.Users.FindAsync(userId);
         if (user != null && user.Role == "Student")
         {
-            user.SubscriptionPlan = "Free";
+            user.SubscriptionPlan = SubscriptionPlanCatalog.Basic;
             user.SubscriptionExpiry = null;
             await _db.SaveChangesAsync();
-            TempData["SuccessMessage"] = $"Đã thu hồi gói của {user.Username}";
+            TempData["SuccessMessage"] = $"Đã thu hồi gói của {user.Username} về Basic";
         }
         return RedirectToPage();
     }
