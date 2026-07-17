@@ -64,15 +64,15 @@
     <div class="stats-kpi-card">
         <div class="stats-kpi-icon blue"><i class="bi bi-person-fill"></i></div>
         <div>
-            <div class="stats-kpi-value">@Model.FreeCount</div>
-            <div class="stats-kpi-label">Free</div>
+            <div class="stats-kpi-value">@Model.BasicCount</div>
+            <div class="stats-kpi-label">Basic</div>
         </div>
     </div>
     <div class="stats-kpi-card">
         <div class="stats-kpi-icon purple"><i class="bi bi-star-fill"></i></div>
         <div>
-            <div class="stats-kpi-value">@Model.BasicCount</div>
-            <div class="stats-kpi-label">Basic</div>
+            <div class="stats-kpi-value">@Model.ProCount</div>
+            <div class="stats-kpi-label">Pro</div>
         </div>
     </div>
     <div class="stats-kpi-card">
@@ -104,16 +104,16 @@
                     <td style="font-weight: 500;">@user.Username</td>
                     <td>@(string.IsNullOrEmpty(user.Email) ? "-" : user.Email)</td>
                     <td>
-                        @if (user.SubscriptionPlan == "Free")
-                        {
-                            <span style="display:inline-block; padding: 2px 8px; border-radius: 4px; border: 1px solid #ccc; font-size: 0.8rem; font-weight: 600; color: #666; background: #f8f9fa;">
-                                <i class="bi bi-person"></i> FREE
-                            </span>
-                        }
-                        else if (user.SubscriptionPlan == "Basic")
+                        @if (user.SubscriptionPlan == "Basic" || user.SubscriptionPlan == "Free")
                         {
                             <span style="display:inline-block; padding: 2px 8px; border-radius: 4px; border: 1px solid #93c5fd; font-size: 0.8rem; font-weight: 600; color: #1e40af; background: #eff6ff;">
-                                <i class="bi bi-star-fill"></i> BASIC
+                                <i class="bi bi-person"></i> BASIC
+                            </span>
+                        }
+                        else if (user.SubscriptionPlan == "Pro")
+                        {
+                            <span style="display:inline-block; padding: 2px 8px; border-radius: 4px; border: 1px solid #c4b5fd; font-size: 0.8rem; font-weight: 600; color: #5b21b6; background: #f5f3ff;">
+                                <i class="bi bi-star-fill"></i> PRO
                             </span>
                         }
                         else
@@ -127,15 +127,21 @@
                         @(user.SubscriptionExpiry.HasValue ? user.SubscriptionExpiry.Value.ToString("dd/MM/yyyy") : "-")
                     </td>
                     <td>
-                        <div style="font-size:0.8rem;">Còn @(10 - user.ShortTermQuestionCount) / 10</div>
+                        @{
+                            var shortLimit = user.SubscriptionPlan == "Ultra" ? 1000 : (user.SubscriptionPlan == "Pro" ? 50 : 10);
+                        }
+                        <div style="font-size:0.8rem;">Còn @(shortLimit - user.ShortTermQuestionCount) / @shortLimit</div>
                         <div style="width:100px; height:6px; background:#e2e8f0; border-radius:3px; margin-top:4px;">
-                            <div style="height:100%; border-radius:3px; background:#10b981; width:@Math.Max(0, (10 - user.ShortTermQuestionCount) * 10)%;"></div>
+                            <div style="height:100%; border-radius:3px; background:#10b981; width:@Math.Max(0, (shortLimit - user.ShortTermQuestionCount) * 100 / Math.Max(1, shortLimit))%;"></div>
                         </div>
                     </td>
                     <td>
-                        <div style="font-size:0.8rem;">Còn @(50 - user.MonthlyQuestionCount) / 50</div>
+                        @{
+                            var monthLimit = user.SubscriptionPlan == "Ultra" ? 5000 : (user.SubscriptionPlan == "Pro" ? 200 : 50);
+                        }
+                        <div style="font-size:0.8rem;">Còn @(monthLimit - user.MonthlyQuestionCount) / @monthLimit</div>
                         <div style="width:100px; height:6px; background:#e2e8f0; border-radius:3px; margin-top:4px;">
-                            <div style="height:100%; border-radius:3px; background:#10b981; width:@Math.Max(0, (50 - user.MonthlyQuestionCount) * 2)%;"></div>
+                            <div style="height:100%; border-radius:3px; background:#10b981; width:@Math.Max(0, (monthLimit - user.MonthlyQuestionCount) * 100 / Math.Max(1, monthLimit))%;"></div>
                         </div>
                     </td>
                     <td>
@@ -150,7 +156,7 @@
                                     <i class="bi bi-arrow-counterclockwise"></i> RESET
                                 </button>
                             </form>
-                            <form method="post" asp-page-handler="RevokePlan" style="display:inline;" onsubmit="return confirm('Thu hồi gói (Về Free)?');">
+                            <form method="post" asp-page-handler="RevokePlan" style="display:inline;" onsubmit="return confirm('Thu hồi gói (Về Basic)?');">
                                 @Html.AntiForgeryToken()
                                 <input type="hidden" name="userId" value="@user.UserId" />
                                 <button type="submit" class="btn-action btn-action-delete">
@@ -179,8 +185,8 @@
             <div class="form-group" style="margin-bottom:1rem;">
                 <label style="display:block; margin-bottom:0.5rem; font-weight:600; font-size:0.9rem;">Gói (Plan)</label>
                 <select name="plan" id="editPlan" class="form-control" style="width:100%; padding:0.5rem; border:1px solid #ccc; border-radius:4px;" required>
-                    <option value="Free">Free</option>
                     <option value="Basic">Basic</option>
+                    <option value="Pro">Pro</option>
                     <option value="Ultra">Ultra</option>
                 </select>
             </div>

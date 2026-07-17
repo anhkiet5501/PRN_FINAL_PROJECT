@@ -25,6 +25,7 @@ public class ChatService : IChatService
     private readonly EmbeddingProviderFactory _embeddingFactory;
     private readonly ILogger<ChatService> _logger;
     private readonly IGeminiChatService _geminiChat;
+    private readonly ISubscriptionService _subscriptionService;
 
     private const int MaxHistoryMessages = 10; // context window limit
 
@@ -32,12 +33,14 @@ public class ChatService : IChatService
         IUnitOfWork uow,
         EmbeddingProviderFactory embeddingFactory,
         ILogger<ChatService> logger,
-        IGeminiChatService geminiChat)
+        IGeminiChatService geminiChat,
+        ISubscriptionService subscriptionService)
     {
         _uow = uow;
         _embeddingFactory = embeddingFactory;
         _logger = logger;
         _geminiChat = geminiChat;
+        _subscriptionService = subscriptionService;
     }
 
     // ── Session Management ────────────────────────────────────────────
@@ -146,6 +149,12 @@ public class ChatService : IChatService
                 .Include(s => s.EmbeddingModel)
                 .FirstOrDefaultAsync(s => s.ChatSessionId == dto.ChatSessionId)
                 ?? throw new Exception("Chat session not found");
+
+            var quotaCheck = await _subscriptionService.CheckQuotaAsync(session.UserId);
+            if (!quotaCheck.Allowed)
+            {
+                return new ChatResponseDto { IsError = true, ErrorMessage = quotaCheck.Message };
+            }
 
             // 1. Embed the user question
             var embeddingProvider = _embeddingFactory.Create(session.EmbeddingModel);
@@ -329,11 +338,10 @@ public class ChatService : IChatService
                 if (user != null)
                 {
                     user.TokensUsed += totalTokens;
-                    user.ShortTermQuestionCount += 1;
-                    user.MonthlyQuestionCount += 1;
                     user.UpdatedAt = DateTime.UtcNow;
                     _uow.Users.Update(user);
                     userTokensUsed = user.TokensUsed;
+                    await _subscriptionService.IncrementUsageAsync(user.UserId);
                 }
             }
             await _uow.SaveChangesAsync();
@@ -450,6 +458,12 @@ public class ChatService : IChatService
                 .Include(s => s.EmbeddingModel)
                 .FirstOrDefaultAsync(s => s.ChatSessionId == dto.ChatSessionId)
                 ?? throw new Exception("Chat session not found");
+
+            var quotaCheck = await _subscriptionService.CheckQuotaAsync(session.UserId);
+            if (!quotaCheck.Allowed)
+            {
+                return new ChatResponseDto { IsError = true, ErrorMessage = quotaCheck.Message };
+            }
 
             // 1. Embed the user question
             var embeddingProvider = _embeddingFactory.Create(session.EmbeddingModel);
@@ -641,10 +655,7 @@ public class ChatService : IChatService
                 var user = await _uow.Users.GetByIdAsync(sessionEntity.UserId);
                 if (user != null)
                 {
-                    user.ShortTermQuestionCount += 1;
-                    user.MonthlyQuestionCount += 1;
-                    user.UpdatedAt = DateTime.UtcNow;
-                    _uow.Users.Update(user);
+                    await _subscriptionService.IncrementUsageAsync(user.UserId);
                 }
             }
             await _uow.SaveChangesAsync();

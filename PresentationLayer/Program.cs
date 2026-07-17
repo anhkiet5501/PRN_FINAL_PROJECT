@@ -138,6 +138,10 @@ builder.Services.AddSingleton<IGeminiChatService>(sp =>
 builder.Services.AddScoped<IChatService, ChatService>();
 builder.Services.AddScoped<IBenchmarkService, BenchmarkService>();
 builder.Services.AddScoped<IStatisticsService, StatisticsService>();
+builder.Services.AddScoped<ISubscriptionService, SubscriptionService>();
+builder.Services.AddScoped<IVNPayService, VNPayService>();
+
+builder.Services.Configure<VNPaySettings>(builder.Configuration.GetSection("VNPay"));
 
 // ── Razor Pages ───────────────────────────────────────────────────────
 builder.Services.AddRazorPages(options =>
@@ -151,6 +155,7 @@ builder.Services.AddRazorPages(options =>
     options.Conventions.AuthorizeFolder("/Benchmark", "TeacherOrAdmin");
     options.Conventions.AllowAnonymousToPage("/Auth/Login");
     options.Conventions.AllowAnonymousToPage("/Auth/Register");
+    options.Conventions.AllowAnonymousToPage("/Payment/VNPayIpn");
 });
 
 // ── Session (for flash messages) ─────────────────────────────────────

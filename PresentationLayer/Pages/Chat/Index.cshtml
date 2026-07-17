@@ -1,5 +1,6 @@
 @page "{sessionId:int?}"
 @model PRN222_Assignment2.Pages.Chat.IndexModel
+@using BusinessLayer.Services
 @{
     ViewData["Title"] = "Chat AI";
     ViewData["ActivePage"] = "Chat";
@@ -19,6 +20,13 @@
     flex-direction: column;
     overflow: hidden;
     padding: 0 !important;
+    min-height: 0;
+}
+
+.app-main {
+    min-height: 0;
+    height: 100vh;
+    overflow: hidden;
 }
 
 .chat-shell {
@@ -27,6 +35,7 @@
     flex: 1;
     overflow: hidden;
     min-height: 0;
+    height: 100%;
 }
 
 /* ── Left Sidebar (Sessions) ──────────────────────────── */
@@ -140,6 +149,8 @@
     display: flex; flex-direction: column;
     overflow: hidden;
     background: #f8fafc;
+    min-height: 0;
+    height: 100%;
 }
 
 .chat-top-bar {
@@ -175,9 +186,16 @@
 
 /* ── Messages ─────────────────────────────────────────── */
 .chat-messages {
-    flex: 1; overflow-y: auto;
+    flex: 1 1 auto;
+    overflow-y: auto;
+    overflow-x: hidden;
     padding: 1.25rem 1.5rem;
-    display: flex; flex-direction: column; gap: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    min-height: 0;
+    overscroll-behavior: contain;
+    scroll-behavior: smooth;
 }
 .chat-messages::-webkit-scrollbar { width: 5px; }
 .chat-messages::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 999px; }
@@ -449,18 +467,20 @@
 
         @if (Model.UserRole == "Student")
         {
-            var maxShort = Model.SubscriptionPlan == "Ultra" ? 1000 : (Model.SubscriptionPlan == "Basic" ? 50 : 10);
-            var limitPercent = Math.Min(100, Math.Max(0, (double)Model.ShortTermQuestionCount / maxShort * 100));
+            var planCode = Model.SubscriptionPlan == "Free" ? SubscriptionPlanCatalog.Basic : Model.SubscriptionPlan;
+            var maxShort = SubscriptionPlanCatalog.GetShortTermLimit(planCode);
+            var limitPercent = Math.Min(100, Math.Max(0, (double)Model.ShortTermQuestionCount / Math.Max(1, maxShort) * 100));
 
             <div class="usage-box">
                 <div class="usage-plan">
-                    <i class="bi bi-crown-fill"></i> @Model.SubscriptionPlan
+                    <i class="bi bi-crown-fill"></i> @planCode
                 </div>
                 <div class="usage-title">USAGE CỦA TÀI KHOẢN</div>
                 <div class="usage-bar-bg">
                     <div class="usage-bar-fill" style="width: @limitPercent%;"></div>
                 </div>
                 <div class="usage-text">@Model.ShortTermQuestionCount / @maxShort câu hỏi (chu kỳ 5h)</div>
+                <a href="/Subscription" style="display:block; margin-top:0.75rem; font-size:0.78rem; font-weight:600;">Nâng cấp gói →</a>
             </div>
         }
     </div>
@@ -673,7 +693,7 @@ async function initSignalR() {
 
             streamingRawText += chunk;
             bubble.innerHTML = renderMd(streamingRawText);
-            scrollToBottom();
+            if (isNearBottom()) scrollToBottom();
         });
 
         connection.on('StreamComplete', (data) => {
@@ -1135,8 +1155,20 @@ function showTyping(show) {
     }
 }
 
-function scrollToBottom() {
-    if (msgsEl) msgsEl.scrollTop = msgsEl.scrollHeight;
+function scrollToBottom(force = false) {
+    if (!msgsEl) return;
+    const doScroll = () => {
+        msgsEl.scrollTop = msgsEl.scrollHeight;
+    };
+    requestAnimationFrame(() => {
+        doScroll();
+        requestAnimationFrame(doScroll);
+    });
+}
+
+function isNearBottom(threshold = 120) {
+    if (!msgsEl) return true;
+    return msgsEl.scrollHeight - msgsEl.scrollTop - msgsEl.clientHeight < threshold;
 }
 
 function escHtml(t) {
