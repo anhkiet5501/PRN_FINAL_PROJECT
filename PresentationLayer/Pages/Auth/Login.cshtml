@@ -43,11 +43,11 @@
             <form method="post" id="login-form">
                 @Html.AntiForgeryToken()
                 <div class="login-form-group">
-                    <label for="Username"><i class="bi bi-person"></i> Tên đăng nhập</label>
+                    <label for="Username"><i class="bi bi-person"></i> Tên đăng nhập hoặc Email</label>
                     <input type="text" id="Username" name="Input.Username"
                            class="login-input"
                            value="@Model.Input.Username"
-                           placeholder="admin" autocomplete="username" required />
+                           placeholder="admin hoặc example@gmail.com" autocomplete="username" required />
                 </div>
                 <div class="login-form-group">
                     <label for="Password"><i class="bi bi-lock"></i> Mật khẩu</label>
@@ -55,9 +55,12 @@
                            class="login-input"
                            placeholder="••••••••" autocomplete="current-password" required />
                 </div>
-                <div class="remember-row">
-                    <input type="checkbox" id="RememberMe" name="Input.RememberMe" value="true" />
-                    <label for="RememberMe">Ghi nhớ đăng nhập</label>
+                <div class="remember-row" style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <input type="checkbox" id="RememberMe" name="Input.RememberMe" value="true" />
+                        <label for="RememberMe">Ghi nhớ đăng nhập</label>
+                    </div>
+                    <a href="/Auth/ForgotPassword" style="color: #3f83f8; font-size: 0.875rem; text-decoration: none;">Quên mật khẩu?</a>
                 </div>
                 <button type="submit" class="btn-login" id="btn-submit">
                     <i class="bi bi-box-arrow-in-right"></i> Đăng nhập

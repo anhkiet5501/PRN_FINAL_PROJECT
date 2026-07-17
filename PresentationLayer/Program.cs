@@ -43,6 +43,9 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 // ── Repository & Unit of Work ─────────────────────────────────────────
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 
+// ── Memory Cache for OTP ──────────────────────────────────────────────
+builder.Services.AddMemoryCache();
+
 // ── Cookie Authentication ─────────────────────────────────────────────
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(options =>
@@ -119,7 +122,7 @@ builder.Services.AddSingleton<EmbeddingProviderFactory>(sp =>
 });
 
 // ── Business Services ─────────────────────────────────────────────────
-builder.Services.AddScoped<IFakeEmailService, FakeEmailService>();
+builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<ISubjectService, SubjectService>();
 builder.Services.AddScoped<IDocumentRealtimeNotifier, SignalRDocumentRealtimeNotifier>();

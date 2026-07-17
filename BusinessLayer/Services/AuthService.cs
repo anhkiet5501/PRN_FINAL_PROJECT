@@ -3,6 +3,7 @@ using BusinessLayer.Helpers;
 using DataAccessLayer.Entities;
 using DataAccessLayer.Repositories;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace BusinessLayer.Services;
 
@@ -17,25 +18,29 @@ public interface IAuthService
     Task<(int successCount, int skipCount)> ImportUsersFromCsvAsync(Stream csvStream);
     Task<bool> UpdateUserAsync(int userId, UpdateUserDto dto);
     Task<bool> DeleteUserAsync(int userId);
+    Task<bool> SendPasswordResetCodeAsync(string email);
+    Task<bool> ResetPasswordAsync(string email, string code, string newPassword);
 }
 
 public class AuthService : IAuthService
 {
     private readonly IUnitOfWork _uow;
     private readonly ILogger<AuthService> _logger;
-    private readonly IFakeEmailService _emailService;
+    private readonly IEmailService _emailService;
+    private readonly Microsoft.Extensions.Caching.Memory.IMemoryCache _cache;
 
-    public AuthService(IUnitOfWork uow, ILogger<AuthService> logger, IFakeEmailService emailService)
+    public AuthService(IUnitOfWork uow, ILogger<AuthService> logger, IEmailService emailService, Microsoft.Extensions.Caching.Memory.IMemoryCache cache)
     {
         _uow = uow;
         _logger = logger;
         _emailService = emailService;
+        _cache = cache;
     }
 
     public async Task<UserDto?> LoginAsync(LoginDto dto)
     {
         var user = await _uow.Users
-            .FirstOrDefaultAsync(u => u.Username == dto.Username && u.IsActive);
+            .FirstOrDefaultAsync(u => (u.Username == dto.Username || u.Email == dto.Username) && u.IsActive);
 
         if (user is null) return null;
         if (!SecurityHelper.VerifyPassword(dto.Password, user.PasswordHash)) return null;
@@ -103,6 +108,52 @@ public class AuthService : IAuthService
         user.UpdatedAt = DateTime.UtcNow;
         _uow.Users.Update(user);
         await _uow.SaveChangesAsync();
+        return true;
+    }
+
+    public async Task<bool> SendPasswordResetCodeAsync(string email)
+    {
+        var user = await _uow.Users.FirstOrDefaultAsync(u => u.Email == email && u.IsActive);
+        if (user == null) return false;
+
+        // Sinh mã OTP 6 số
+        var otp = Random.Shared.Next(100000, 999999).ToString();
+        var cacheKey = $"pwd_reset_{email.ToLower()}";
+
+        // Lưu vào MemoryCache với thời gian sống 5 phút
+        _cache.Set(cacheKey, otp, TimeSpan.FromMinutes(5));
+
+        // Gửi email
+        var subject = "Mã xác nhận đặt lại mật khẩu";
+        var body = $"Xin chào {user.FullName},\n\nMã xác nhận để đặt lại mật khẩu của bạn là: {otp}\n\nMã này sẽ hết hạn sau 5 phút.\nVui lòng không chia sẻ mã này với bất kỳ ai.\n\nTrân trọng,\nRAG LMS Team";
+        await _emailService.SendEmailAsync(user.Email, subject, body);
+
+        _logger.LogInformation("Password reset code generated and sent to {Email}", email);
+        return true;
+    }
+
+    public async Task<bool> ResetPasswordAsync(string email, string code, string newPassword)
+    {
+        var cacheKey = $"pwd_reset_{email.ToLower()}";
+        
+        if (!_cache.TryGetValue(cacheKey, out string? cachedOtp) || cachedOtp != code)
+        {
+            return false; // Mã sai hoặc đã hết hạn
+        }
+
+        var user = await _uow.Users.FirstOrDefaultAsync(u => u.Email == email && u.IsActive);
+        if (user == null) return false;
+
+        // Đổi mật khẩu
+        user.PasswordHash = SecurityHelper.HashPassword(newPassword);
+        user.UpdatedAt = DateTime.UtcNow;
+        _uow.Users.Update(user);
+        await _uow.SaveChangesAsync();
+
+        // Xóa mã khỏi cache
+        _cache.Remove(cacheKey);
+
+        _logger.LogInformation("Password successfully reset for {Email}", email);
         return true;
     }
 
