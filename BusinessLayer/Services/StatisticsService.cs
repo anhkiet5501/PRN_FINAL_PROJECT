@@ -72,6 +72,7 @@ public class StatisticsService : IStatisticsService
         }
 
         var topChatUsers = await _uow.ChatSessions.Query()
+            .Where(c => c.User.Role == "Student")
             .GroupBy(c => c.UserId)
             .Select(g => new { UserId = g.Key, Count = g.Count() })
             .OrderByDescending(x => x.Count)
@@ -89,6 +90,7 @@ public class StatisticsService : IStatisticsService
             .ToListAsync();
 
         var topUploaders = await _uow.Documents.Query()
+            .Where(d => d.UploadedBy.Role != "Admin")
             .GroupBy(d => d.UploadedByUserId)
             .Select(g => new { UserId = g.Key, Count = g.Count() })
             .OrderByDescending(x => x.Count)
@@ -113,6 +115,67 @@ public class StatisticsService : IStatisticsService
             "Admin statistics loaded: {TotalUsers} users, {Subjects} subjects, {Documents} documents",
             totalUsers, totalSubjects, totalDocuments);
 
+        // Tokens By Month
+        var tokensRaw = await _uow.ChatHistories.Query()
+            .Where(h => h.CreatedAt >= trendStart && h.TokenCount != null)
+            .GroupBy(h => new { h.CreatedAt.Year, h.CreatedAt.Month })
+            .Select(g => new { g.Key.Year, g.Key.Month, Count = g.Sum(x => x.TokenCount) })
+            .ToListAsync();
+
+        var tokensByMonth = new List<MonthlyCountDto>();
+        for (var i = 0; i < 6; i++)
+        {
+            var cursor = trendStart.AddMonths(i);
+            var match = tokensRaw.FirstOrDefault(r => r.Year == cursor.Year && r.Month == cursor.Month);
+            tokensByMonth.Add(new MonthlyCountDto
+            {
+                Year = cursor.Year,
+                Month = cursor.Month,
+                Label = $"{cursor.Month:D2}/{cursor.Year}",
+                Count = match?.Count ?? 0
+            });
+        }
+
+        // Payments By Month
+        var paymentsRaw = await _uow.PaymentTransactions.Query()
+            .Where(p => p.CreatedAt >= trendStart && p.Status == "Success")
+            .GroupBy(p => new { p.CreatedAt.Year, p.CreatedAt.Month })
+            .Select(g => new { g.Key.Year, g.Key.Month, Revenue = g.Sum(x => x.Amount) })
+            .ToListAsync();
+
+        var paymentsByMonth = new List<MonthlyRevenueDto>();
+        for (var i = 0; i < 6; i++)
+        {
+            var cursor = trendStart.AddMonths(i);
+            var match = paymentsRaw.FirstOrDefault(r => r.Year == cursor.Year && r.Month == cursor.Month);
+            paymentsByMonth.Add(new MonthlyRevenueDto
+            {
+                Year = cursor.Year,
+                Month = cursor.Month,
+                Label = $"{cursor.Month:D2}/{cursor.Year}",
+                Revenue = match?.Revenue ?? 0m
+            });
+        }
+
+        // User Payment Stats
+        var userPaymentStats = await users
+            .Where(u => u.Role == "Student")
+            .Select(u => new UserPaymentStatsDto
+            {
+                UserId = u.UserId,
+                FullName = string.IsNullOrWhiteSpace(u.FullName) ? u.Username : u.FullName,
+                Email = u.Email ?? "",
+                CurrentPlan = string.IsNullOrWhiteSpace(u.SubscriptionPlan) ? "Free" : u.SubscriptionPlan,
+                TotalTokensUsed = u.TokensUsed,
+                TotalMoneySpent = _uow.PaymentTransactions.Query()
+                                    .Where(p => p.UserId == u.UserId && p.Status == "Success")
+                                    .Sum(p => (decimal?)p.Amount) ?? 0m
+            })
+            .OrderByDescending(u => u.TotalMoneySpent)
+            .ThenByDescending(u => u.TotalTokensUsed)
+            .Take(50)
+            .ToListAsync();
+
         return new AdminStatisticsDto
         {
             TotalUsers = totalUsers,
@@ -132,6 +195,9 @@ public class StatisticsService : IStatisticsService
             RegistrationsByMonth = registrationsByMonth,
             TopChatUsers = topChatUsers,
             TopUploaders = topUploaders,
+            TokensByMonth = tokensByMonth,
+            PaymentsByMonth = paymentsByMonth,
+            UserPaymentStats = userPaymentStats,
             KnowledgeBase = knowledgeBase,
             AiRag = aiRag,
             Learning = learning
@@ -223,7 +289,7 @@ public class StatisticsService : IStatisticsService
             .ToListAsync();
 
         var topTokenUsers = await users
-            .Where(u => u.TokensUsed > 0)
+            .Where(u => u.TokensUsed > 0 && u.Role == "Student")
             .OrderByDescending(u => u.TokensUsed)
             .Take(5)
             .Select(u => new TopUserActivityDto

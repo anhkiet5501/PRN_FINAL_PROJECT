@@ -34,6 +34,8 @@ public class UpdateUserDto
 {
     public string? FullName { get; set; }
     public string Role { get; set; } = string.Empty;
+    public string? Email { get; set; }
+    public string? Password { get; set; }
 }
 
 // ── Subject / Chapter DTOs ───────────────────────────────────────────
@@ -314,6 +316,24 @@ public class LearningAnalyticsDto
     public int ActiveUsersLast30Days { get; set; }
 }
 
+public class MonthlyRevenueDto
+{
+    public int Year { get; set; }
+    public int Month { get; set; }
+    public string Label { get; set; } = string.Empty;
+    public decimal Revenue { get; set; }
+}
+
+public class UserPaymentStatsDto
+{
+    public int UserId { get; set; }
+    public string FullName { get; set; } = string.Empty;
+    public string Email { get; set; } = string.Empty;
+    public string CurrentPlan { get; set; } = string.Empty;
+    public int TotalTokensUsed { get; set; }
+    public decimal TotalMoneySpent { get; set; }
+}
+
 public class AdminStatisticsDto
 {
     public int TotalUsers { get; set; }
@@ -336,6 +356,10 @@ public class AdminStatisticsDto
     public List<MonthlyCountDto> RegistrationsByMonth { get; set; } = new();
     public List<TopUserActivityDto> TopChatUsers { get; set; } = new();
     public List<TopUserActivityDto> TopUploaders { get; set; } = new();
+
+    public List<MonthlyCountDto> TokensByMonth { get; set; } = new();
+    public List<MonthlyRevenueDto> PaymentsByMonth { get; set; } = new();
+    public List<UserPaymentStatsDto> UserPaymentStats { get; set; } = new();
 
     public KnowledgeBaseAnalyticsDto KnowledgeBase { get; set; } = new();
     public AiRagAnalyticsDto AiRag { get; set; } = new();

@@ -469,17 +469,27 @@
         {
             var planCode = Model.SubscriptionPlan == "Free" ? SubscriptionPlanCatalog.Basic : Model.SubscriptionPlan;
             var maxShort = SubscriptionPlanCatalog.GetShortTermLimit(planCode);
-            var limitPercent = Math.Min(100, Math.Max(0, (double)Model.ShortTermQuestionCount / Math.Max(1, maxShort) * 100));
+            var maxMonth = SubscriptionPlanCatalog.GetMonthlyLimit(planCode);
+            var shortPercent = Math.Min(100, Math.Max(0, (double)(maxShort - Model.ShortTermQuestionCount) / Math.Max(1, maxShort) * 100));
+            var monthPercent = Math.Min(100, Math.Max(0, (double)(maxMonth - Model.MonthlyQuestionCount) / Math.Max(1, maxMonth) * 100));
 
             <div class="usage-box">
                 <div class="usage-plan">
                     <i class="bi bi-crown-fill"></i> @planCode
                 </div>
-                <div class="usage-title">USAGE CỦA TÀI KHOẢN</div>
-                <div class="usage-bar-bg">
-                    <div class="usage-bar-fill" style="width: @limitPercent%;"></div>
+                
+                <div class="usage-title" style="margin-top:0.5rem;">LƯỢT 5 GIỜ</div>
+                <div class="usage-text" style="font-size:0.75rem; margin-bottom:0.2rem;">Còn @Math.Max(0, maxShort - Model.ShortTermQuestionCount) / @maxShort</div>
+                <div class="usage-bar-bg" style="margin-bottom:0.75rem;">
+                    <div class="usage-bar-fill" style="width: @shortPercent%; background: #10b981;"></div>
                 </div>
-                <div class="usage-text">@Model.ShortTermQuestionCount / @maxShort câu hỏi (chu kỳ 5h)</div>
+
+                <div class="usage-title">LƯỢT THÁNG</div>
+                <div class="usage-text" style="font-size:0.75rem; margin-bottom:0.2rem;">Còn @Math.Max(0, maxMonth - Model.MonthlyQuestionCount) / @maxMonth</div>
+                <div class="usage-bar-bg">
+                    <div class="usage-bar-fill" style="width: @monthPercent%; background: #10b981;"></div>
+                </div>
+
                 <a href="/Subscription" style="display:block; margin-top:0.75rem; font-size:0.78rem; font-weight:600;">Nâng cấp gói →</a>
             </div>
         }
@@ -888,6 +898,11 @@ async function deleteSession(event, sessionId) {
     });
     // Reload page to refresh sessions list
     window.location.href = '/Chat';
+}
+
+function switchSession(id) {
+    if (currentSessionId === id) return;
+    window.location.href = '/Chat/' + id;
 }
 
 // ── Send Message ───────────────────────────────────────────────────────

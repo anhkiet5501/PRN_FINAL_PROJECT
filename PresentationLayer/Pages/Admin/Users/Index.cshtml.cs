@@ -33,12 +33,11 @@ public class IndexModel : PageModel
     public async Task<IActionResult> OnPostCreateUserAsync()
     {
         // Remove UpdateInput errors when creating a user
-        foreach (var key in ModelState.Keys)
+        // Remove anything that is not related to Input
+        var keysToRemove = ModelState.Keys.Where(k => !k.StartsWith(nameof(Input))).ToList();
+        foreach (var key in keysToRemove)
         {
-            if (key.StartsWith(nameof(UpdateInput)))
-            {
-                ModelState.Remove(key);
-            }
+            ModelState.Remove(key);
         }
 
         if (!ModelState.IsValid)
@@ -71,18 +70,12 @@ public class IndexModel : PageModel
     public async Task<IActionResult> OnPostEditUserAsync(int editUserId)
     {
         // Remove Input errors when editing a user
-        foreach (var key in ModelState.Keys)
+        // For edit, we don't need strict ModelState validation since we manually handle empty fields
+        // and UpdateUserDto has no required validation attributes.
+        // If there are specific validation needs, we check them manually.
+        if (string.IsNullOrWhiteSpace(UpdateInput.Role))
         {
-            if (key.StartsWith(nameof(Input)))
-            {
-                ModelState.Remove(key);
-            }
-        }
-
-        if (!ModelState.IsValid)
-        {
-            var errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage);
-            TempData["Error"] = "Lỗi nhập liệu: " + string.Join(" ", errors);
+            TempData["Error"] = "Lỗi nhập liệu: Vai trò không được để trống.";
             return RedirectToPage();
         }
 

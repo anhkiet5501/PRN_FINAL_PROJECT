@@ -23,6 +23,7 @@ public interface IUnitOfWork : IDisposable
     IGenericRepository<Experiment> Experiments { get; }
     IGenericRepository<TestSet> TestSets { get; }
     IGenericRepository<BenchmarkResult> BenchmarkResults { get; }
+    IGenericRepository<PaymentTransaction> PaymentTransactions { get; }
 
     Task<int> SaveChangesAsync();
 }

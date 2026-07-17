@@ -27,7 +27,6 @@
                 <th>Họ và Tên</th>
                 <th>Email</th>
                 <th>Vai Trò</th>
-                <th>Token đã dùng</th>
                 <th>Trạng Thái</th>
                 <th>Hành Động</th>
             </tr>
@@ -40,7 +39,6 @@
                     <td style="font-weight: 500;">@(string.IsNullOrEmpty(user.FullName) ? user.Username : user.FullName)</td>
                     <td>@user.Email</td>
                     <td>@(user.Role == "Admin" ? "ADMIN" : user.Role == "Teacher" ? "Giảng viên" : "Sinh viên")</td>
-                    <td style="font-variant-numeric: tabular-nums;">@user.TokensUsed.ToString("N0")</td>
                     <td>
                         @if (user.IsActive)
                         {
@@ -53,7 +51,7 @@
                     </td>
                     <td>
                         <div style="display: flex; gap: 0.5rem;">
-                            <button type="button" class="btn-action btn-action-edit" title="Sửa" onclick="showEditModal(@user.UserId, '@user.FullName', '@user.Role')">
+                            <button type="button" class="btn-action btn-action-edit" title="Sửa" onclick="showEditModal(@user.UserId, '@(user.FullName?.Replace("'", "\\'"))', '@user.Role', '@(user.Email?.Replace("'", "\\'"))')">
                                 <i class="bi bi-pencil"></i> SỬA
                             </button>
                             @if (user.Role != "Admin")
@@ -148,6 +146,14 @@
                 <input type="text" name="UpdateInput.FullName" id="editFullName" class="form-control" />
             </div>
             <div class="form-group">
+                <label class="form-label">Email</label>
+                <input type="email" name="UpdateInput.Email" id="editEmail" class="form-control" />
+            </div>
+            <div class="form-group">
+                <label class="form-label">Mật khẩu (để trống nếu không đổi)</label>
+                <input type="password" name="UpdateInput.Password" class="form-control" placeholder="Nhập mật khẩu mới nếu muốn đổi..." />
+            </div>
+            <div class="form-group">
                 <label class="form-label">Vai trò (Role)</label>
                 <select name="UpdateInput.Role" id="editRole" class="form-control" required>
                     <option value="Student">Sinh viên</option>
@@ -173,9 +179,10 @@
     function hideCreateModal() { document.getElementById('create-modal').classList.remove('show'); }
     document.getElementById('create-modal').addEventListener('click', function(e) { if (e.target === this) hideCreateModal(); });
     
-    function showEditModal(id, name, role) {
+    function showEditModal(id, name, role, email) {
         document.getElementById('editUserId').value = id;
         document.getElementById('editFullName').value = name;
+        document.getElementById('editEmail').value = email;
         document.getElementById('editRole').value = role;
         document.getElementById('edit-modal').classList.add('show');
     }

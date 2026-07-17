@@ -43,6 +43,7 @@ public class IndexModel : PageModel
     public string UserRole { get; set; } = string.Empty;
     public string SubscriptionPlan { get; set; } = SubscriptionPlanCatalog.Basic;
     public int ShortTermQuestionCount { get; set; } = 0;
+    public int MonthlyQuestionCount { get; set; } = 0;
 
     // ── Helpers ───────────────────────────────────────────────────────
     private int GetUserId() =>
@@ -60,6 +61,7 @@ public class IndexModel : PageModel
             UserRole = user.Role;
             SubscriptionPlan = user.SubscriptionPlan;
             ShortTermQuestionCount = user.ShortTermQuestionCount;
+            MonthlyQuestionCount = user.MonthlyQuestionCount;
         }
 
         Sessions = await _chatService.GetUserSessionsAsync(userId);

@@ -237,13 +237,20 @@
                     <select name="chunkingStrategyId" class="form-control" required>
                         @foreach (var s in Model.ChunkingStrategies)
                         {
+                            var desc = s.StrategyName.Contains("Fixed") ? "Cắt cố định theo số từ (ít giữ ngữ nghĩa)" :
+                                       s.StrategyName.Contains("Paragraph") ? "Cắt theo từng đoạn văn (giữ ngữ nghĩa tốt)" :
+                                       s.StrategyName.Contains("Sentence") ? "Cắt theo từng câu (tìm kiếm chi tiết)" :
+                                       s.StrategyName.Contains("Recursive") ? "Cắt linh hoạt đoạn -> câu -> từ (Tốt nhất)" : "";
+                            
+                            var text = $"{s.StrategyName} — {s.ChunkSize} từ/chunk, overlap {s.ChunkOverlap} ({desc})";
+
                             if (s.IsDefault)
                             {
-                                <option value="@s.ChunkingStrategyId" selected>@s.StrategyName — @s.ChunkSize từ/chunk, overlap @s.ChunkOverlap</option>
+                                <option value="@s.ChunkingStrategyId" selected>@text</option>
                             }
                             else
                             {
-                                <option value="@s.ChunkingStrategyId">@s.StrategyName — @s.ChunkSize từ/chunk, overlap @s.ChunkOverlap</option>
+                                <option value="@s.ChunkingStrategyId">@text</option>
                             }
                         }
                     </select>

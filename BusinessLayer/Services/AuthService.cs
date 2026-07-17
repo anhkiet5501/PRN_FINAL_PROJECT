@@ -197,6 +197,8 @@ Vui lòng đăng nhập và đổi mật khẩu sớm nhất có thể.
 
         user.FullName = dto.FullName;
         user.Role = string.IsNullOrWhiteSpace(dto.Role) ? "Student" : dto.Role;
+        if (!string.IsNullOrWhiteSpace(dto.Email)) user.Email = dto.Email;
+        if (!string.IsNullOrWhiteSpace(dto.Password)) user.PasswordHash = SecurityHelper.HashPassword(dto.Password);
         user.UpdatedAt = DateTime.UtcNow;
         
         _uow.Users.Update(user);

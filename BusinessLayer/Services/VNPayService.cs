@@ -195,7 +195,7 @@ public class VNPayService : IVNPayService
 
     private static string NormalizeIp(string ipAddress)
     {
-        if (string.IsNullOrWhiteSpace(ipAddress))
+        if (string.IsNullOrWhiteSpace(ipAddress) || ipAddress == "::1")
             return "127.0.0.1";
 
         if (IPAddress.TryParse(ipAddress, out var ip) && ip.IsIPv4MappedToIPv6)
@@ -206,7 +206,7 @@ public class VNPayService : IVNPayService
 
     private static string BuildQuery(SortedDictionary<string, string> parameters) =>
         string.Join("&", parameters.Select(p =>
-            $"{WebUtility.UrlEncode(p.Key)}={WebUtility.UrlEncode(p.Value)}"));
+            $"{System.Net.WebUtility.UrlEncode(p.Key)}={System.Net.WebUtility.UrlEncode(p.Value)}"));
 
     private static string HmacSha512(string key, string data)
     {

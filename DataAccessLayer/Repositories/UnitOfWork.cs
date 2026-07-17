@@ -29,6 +29,7 @@ public class UnitOfWork : IUnitOfWork
     private IGenericRepository<Experiment>? _experiments;
     private IGenericRepository<TestSet>? _testSets;
     private IGenericRepository<BenchmarkResult>? _benchmarkResults;
+    private IGenericRepository<PaymentTransaction>? _paymentTransactions;
 
     public IGenericRepository<User> Users
         => _users ??= new GenericRepository<User>(_context);
@@ -62,6 +63,8 @@ public class UnitOfWork : IUnitOfWork
         => _testSets ??= new GenericRepository<TestSet>(_context);
     public IGenericRepository<BenchmarkResult> BenchmarkResults
         => _benchmarkResults ??= new GenericRepository<BenchmarkResult>(_context);
+    public IGenericRepository<PaymentTransaction> PaymentTransactions
+        => _paymentTransactions ??= new GenericRepository<PaymentTransaction>(_context);
 
     public Task<int> SaveChangesAsync()
         => _context.SaveChangesAsync();
