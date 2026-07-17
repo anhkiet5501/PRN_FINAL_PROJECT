@@ -179,6 +179,7 @@ app.UseAuthorization();
 app.MapRazorPages();
 app.MapHub<SubjectHub>("/subjectHub");
 app.MapHub<DocumentHub>("/documentHub");
+app.MapHub<ChatHub>("/chatHub");
 
 // ── Auto-apply EF Core Migrations on startup ──────────────────────────
 using (var scope = app.Services.CreateScope())

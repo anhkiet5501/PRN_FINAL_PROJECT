@@ -18,6 +18,7 @@ public interface IChatService
     Task<ChatSessionDto> CreateSessionAsync(CreateChatSessionDto dto, int userId);
     Task<IEnumerable<ChatMessageDto>> GetMessagesAsync(int sessionId);
     Task<ChatResponseDto> SendMessageAsync(SendMessageDto dto, CancellationToken cancellationToken = default);
+    Task<ChatResponseDto> SendMessageStreamingAsync(SendMessageDto dto, Func<string, Task> onChunk, CancellationToken cancellationToken = default);
     Task<bool> DeleteSessionAsync(int sessionId, int userId);
 }
 
@@ -51,6 +52,7 @@ public class ChatService : IChatService
             .Select(s => new ChatSessionDto
             {
                 ChatSessionId = s.ChatSessionId,
+                SubjectId = s.SubjectId,
                 SessionTitle = s.SessionTitle,
                 SubjectName = s.Subject.SubjectName,
                 AiModelName = s.AiModel.ModelName,
@@ -69,6 +71,7 @@ public class ChatService : IChatService
             .Select(s => new ChatSessionDto
             {
                 ChatSessionId = s.ChatSessionId,
+                SubjectId = s.SubjectId,
                 SessionTitle = s.SessionTitle,
                 SubjectName = s.Subject.SubjectName,
                 AiModelName = s.AiModel.ModelName,
@@ -163,12 +166,19 @@ public class ChatService : IChatService
                 };
             }
 
-            // 2. Retrieve all indexed chunks for this subject
+            // 2. Retrieve all indexed chunks for this subject (filtered by SelectedDocIds if any)
             var subjectId = session.SubjectId;
-            var allChunks = await _uow.DocumentChunks.Query()
+            var query = _uow.DocumentChunks.Query()
                 .Where(c => c.Document.Chapter.SubjectId == subjectId
                          && c.EmbeddingModelId == session.EmbeddingModelId
-                         && c.Document.Status == "Indexed")
+                         && c.Document.Status == "Indexed");
+
+            if (dto.SelectedDocIds != null && dto.SelectedDocIds.Count > 0)
+            {
+                query = query.Where(c => dto.SelectedDocIds.Contains(c.DocumentId));
+            }
+
+            var allChunks = await query
                 .Select(c => new
                 {
                     c.DocumentChunkId,
@@ -179,32 +189,36 @@ public class ChatService : IChatService
                 })
                 .ToListAsync();
 
-            if (allChunks.Count == 0)
+            if (allChunks.Count == 0 && dto.RestrictToDocs)
             {
                 return new ChatResponseDto
                 {
                     IsError = true,
-                    ErrorMessage = "⚠️ No indexed documents found for this subject. Please upload and index documents first."
+                    ErrorMessage = "⚠️ Không tìm thấy tài liệu phù hợp (hoặc bạn chưa chọn tài liệu nào)."
                 };
             }
 
             // 3. Compute cosine similarity → Top-K chunks
-            var chunkVectors = allChunks
-                .Select(c => VectorHelper.DeserializeEmbedding(c.EmbeddingJson))
-                .ToList();
+            var retrievedChunks = new List<dynamic>();
+            if (allChunks.Count > 0)
+            {
+                var chunkVectors = allChunks
+                    .Select(c => VectorHelper.DeserializeEmbedding(c.EmbeddingJson))
+                    .ToList();
 
-            var topK = VectorHelper.TopKSimilar(questionVector, chunkVectors, session.TopK);
-            var retrievedChunks = topK
-                .Select(r => new
-                {
-                    allChunks[r.Index].DocumentChunkId,
-                    allChunks[r.Index].ChunkText,
-                    allChunks[r.Index].OriginalFileName,
-                    allChunks[r.Index].ChapterName,
-                    SimilarityScore = r.Score,
-                    Rank = r.Index
-                })
-                .ToList();
+                var topK = VectorHelper.TopKSimilar(questionVector, chunkVectors, session.TopK);
+                retrievedChunks = topK
+                    .Select(r => (dynamic)new
+                    {
+                        allChunks[r.Index].DocumentChunkId,
+                        allChunks[r.Index].ChunkText,
+                        allChunks[r.Index].OriginalFileName,
+                        allChunks[r.Index].ChapterName,
+                        SimilarityScore = r.Score,
+                        Rank = r.Index
+                    })
+                    .ToList();
+            }
 
             // 4. Load recent conversation history for context
             var history = await _uow.ChatHistories.Query()
@@ -225,17 +239,34 @@ public class ChatService : IChatService
                 contextBuilder.AppendLine();
             }
 
-            var systemPrompt = $"""
-                You are an intelligent learning assistant for a course management system.
-                Answer the student's question based ONLY on the provided context below.
-                If the context doesn't contain enough information, say so clearly.
-                Always cite which context number(s) you used.
-                Be concise, accurate, and educational.
+            string systemPrompt;
+            if (dto.RestrictToDocs)
+            {
+                systemPrompt = $"""
+                    You are an intelligent learning assistant for a course management system.
+                    Answer the student's question based ONLY on the provided context below.
+                    If the context doesn't contain enough information, say so clearly.
+                    Always cite which context number(s) you used.
+                    Be concise, accurate, and educational.
 
-                === CONTEXT ===
-                {contextBuilder}
-                === END CONTEXT ===
-                """;
+                    === CONTEXT ===
+                    {contextBuilder}
+                    === END CONTEXT ===
+                    """;
+            }
+            else
+            {
+                systemPrompt = $"""
+                    You are an intelligent learning assistant for a course management system.
+                    You can answer the student's question using your own knowledge, but you should also refer to the provided context below if it's helpful.
+                    If you use the provided context, cite which context number(s) you used.
+                    Be concise, accurate, and educational.
+
+                    === CONTEXT ===
+                    {contextBuilder}
+                    === END CONTEXT ===
+                    """;
+            }
 
             // 6. Call Gemini API with retry on 429
             var (answer, totalTokens) = await CallGeminiWithRetryAsync(
@@ -447,6 +478,295 @@ public class ChatService : IChatService
         return (text, totalTokens);
     }
 
+    public async Task<ChatResponseDto> SendMessageStreamingAsync(
+        SendMessageDto dto,
+        Func<string, Task> onChunk,
+        CancellationToken cancellationToken = default)
+    {
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+
+        try
+        {
+            // Load session
+            var session = await _uow.ChatSessions.Query()
+                .Include(s => s.AiModel)
+                .Include(s => s.EmbeddingModel)
+                .FirstOrDefaultAsync(s => s.ChatSessionId == dto.ChatSessionId)
+                ?? throw new Exception("Chat session not found");
+
+            // 1. Embed the user question
+            var embeddingProvider = _embeddingFactory.Create(session.EmbeddingModel);
+            float[] questionVector;
+            try
+            {
+                questionVector = await embeddingProvider.EmbedAsync(dto.Question, cancellationToken);
+            }
+            catch (RateLimitException)
+            {
+                return new ChatResponseDto
+                {
+                    IsError = true,
+                    ErrorMessage = "⚠️ Embedding API rate limit reached. Please wait a moment and try again."
+                };
+            }
+
+            // 2. Retrieve all indexed chunks for this subject (filtered by SelectedDocIds if any)
+            var subjectId = session.SubjectId;
+            var query = _uow.DocumentChunks.Query()
+                .Where(c => c.Document.Chapter.SubjectId == subjectId
+                         && c.EmbeddingModelId == session.EmbeddingModelId
+                         && c.Document.Status == "Indexed");
+
+            if (dto.SelectedDocIds != null && dto.SelectedDocIds.Count > 0)
+            {
+                query = query.Where(c => dto.SelectedDocIds.Contains(c.DocumentId));
+            }
+
+            var allChunks = await query
+                .Select(c => new
+                {
+                    c.DocumentChunkId,
+                    c.ChunkText,
+                    c.EmbeddingJson,
+                    c.Document.OriginalFileName,
+                    ChapterName = c.Document.Chapter.ChapterName
+                })
+                .ToListAsync();
+
+            if (allChunks.Count == 0 && dto.RestrictToDocs)
+            {
+                return new ChatResponseDto
+                {
+                    IsError = true,
+                    ErrorMessage = "⚠️ Không tìm thấy tài liệu phù hợp (hoặc bạn chưa chọn tài liệu nào)."
+                };
+            }
+
+            // 3. Compute cosine similarity → Top-K chunks
+            var retrievedChunks = new List<dynamic>();
+            if (allChunks.Count > 0)
+            {
+                var chunkVectors = allChunks
+                    .Select(c => VectorHelper.DeserializeEmbedding(c.EmbeddingJson))
+                    .ToList();
+
+                var topK = VectorHelper.TopKSimilar(questionVector, chunkVectors, session.TopK);
+                retrievedChunks = topK
+                    .Select(r => (dynamic)new
+                    {
+                        allChunks[r.Index].DocumentChunkId,
+                        allChunks[r.Index].ChunkText,
+                        allChunks[r.Index].OriginalFileName,
+                        allChunks[r.Index].ChapterName,
+                        SimilarityScore = r.Score,
+                        Rank = r.Index
+                    })
+                    .ToList();
+            }
+
+            // 4. Load recent conversation history for context
+            var history = await _uow.ChatHistories.Query()
+                .Where(h => h.ChatSessionId == dto.ChatSessionId)
+                .OrderByDescending(h => h.CreatedAt)
+                .Take(MaxHistoryMessages)
+                .OrderBy(h => h.CreatedAt)
+                .Select(h => new { h.Role, h.Content })
+                .ToListAsync();
+
+            // 5. Build Gemini prompt
+            var contextBuilder = new StringBuilder();
+            for (int i = 0; i < retrievedChunks.Count; i++)
+            {
+                var chunk = retrievedChunks[i];
+                contextBuilder.AppendLine($"[Context {i + 1}] (from '{chunk.ChapterName}' — {chunk.OriginalFileName}):");
+                contextBuilder.AppendLine(chunk.ChunkText);
+                contextBuilder.AppendLine();
+            }
+
+            string systemPrompt;
+            if (dto.RestrictToDocs)
+            {
+                systemPrompt = $"""
+                    You are an intelligent learning assistant for a course management system.
+                    Answer the student's question based ONLY on the provided context below.
+                    If the context doesn't contain enough information, say so clearly.
+                    Always cite which context number(s) you used.
+                    Be concise, accurate, and educational.
+
+                    === CONTEXT ===
+                    {contextBuilder}
+                    === END CONTEXT ===
+                    """;
+            }
+            else
+            {
+                systemPrompt = $"""
+                    You are an intelligent learning assistant for a course management system.
+                    You can answer the student's question using your own knowledge, but you should also refer to the provided context below if it's helpful.
+                    If you use the provided context, cite which context number(s) you used.
+                    Be concise, accurate, and educational.
+
+                    === CONTEXT ===
+                    {contextBuilder}
+                    === END CONTEXT ===
+                    """;
+            }
+
+            // 6. Call Gemini Streaming API
+            var fullAnswer = await CallGeminiStreamingAsync(
+                session.AiModel.ModelName,
+                systemPrompt,
+                history.Select(h => (h.Role, h.Content)).ToList(),
+                dto.Question,
+                onChunk,
+                cancellationToken);
+
+            stopwatch.Stop();
+
+            // 7. Save user message to history
+            var userMessage = new ChatHistory
+            {
+                ChatSessionId = dto.ChatSessionId,
+                Role = "user",
+                Content = dto.Question,
+                TokenCount = dto.Question.Split(' ').Length,
+                CreatedAt = DateTime.UtcNow
+            };
+            await _uow.ChatHistories.AddAsync(userMessage);
+            await _uow.SaveChangesAsync();
+
+            // 8. Save assistant response + citations
+            var assistantMessage = new ChatHistory
+            {
+                ChatSessionId = dto.ChatSessionId,
+                Role = "assistant",
+                Content = fullAnswer,
+                TokenCount = fullAnswer.Split(' ').Length,
+                LatencyMs = (int)stopwatch.ElapsedMilliseconds,
+                CreatedAt = DateTime.UtcNow
+            };
+            await _uow.ChatHistories.AddAsync(assistantMessage);
+            await _uow.SaveChangesAsync();
+
+            var citations = retrievedChunks
+                .Select((c, idx) => new ChatCitation
+                {
+                    ChatHistoryId = assistantMessage.ChatHistoryId,
+                    DocumentChunkId = c.DocumentChunkId,
+                    SimilarityScore = c.SimilarityScore,
+                    RetrievalRank = idx + 1
+                })
+                .ToList();
+            await _uow.ChatCitations.AddRangeAsync(citations);
+
+            // Update session last activity
+            var sessionEntity = await _uow.ChatSessions.GetByIdAsync(dto.ChatSessionId);
+            if (sessionEntity != null)
+            {
+                sessionEntity.LastActivityAt = DateTime.UtcNow;
+                _uow.ChatSessions.Update(sessionEntity);
+            }
+            await _uow.SaveChangesAsync();
+
+            return new ChatResponseDto
+            {
+                Answer = fullAnswer,
+                LatencyMs = (int)stopwatch.ElapsedMilliseconds,
+                Citations = retrievedChunks.Select((c, idx) => new CitationDto
+                {
+                    DocumentChunkId = c.DocumentChunkId,
+                    ChunkText = c.ChunkText,
+                    DocumentName = c.OriginalFileName ?? "Unknown",
+                    ChapterName = c.ChapterName,
+                    SimilarityScore = c.SimilarityScore,
+                    RetrievalRank = idx + 1
+                }).ToList()
+            };
+        }
+        catch (OperationCanceledException)
+        {
+            return new ChatResponseDto { IsError = true, ErrorMessage = "Request was cancelled." };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error in streaming chat for session {SessionId}", dto.ChatSessionId);
+            return new ChatResponseDto { IsError = true, ErrorMessage = $"An error occurred: {ex.Message}" };
+        }
+    }
+
+    private async Task<string> CallGeminiStreamingAsync(
+        string modelName,
+        string systemPrompt,
+        List<(string Role, string Content)> history,
+        string userQuestion,
+        Func<string, Task> onChunk,
+        CancellationToken cancellationToken)
+    {
+        var url = $"https://generativelanguage.googleapis.com/v1beta/models/{modelName}:streamGenerateContent?alt=sse&key={_apiKeys.Gemini}";
+
+        var contents = new List<object>();
+        foreach (var (role, content) in history)
+        {
+            var geminiRole = role == "assistant" ? "model" : "user";
+            contents.Add(new { role = geminiRole, parts = new[] { new { text = content } } });
+        }
+        contents.Add(new { role = "user", parts = new[] { new { text = userQuestion } } });
+
+        var payload = new
+        {
+            system_instruction = new { parts = new[] { new { text = systemPrompt } } },
+            contents
+        };
+
+        using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(120) };
+        var json = JsonSerializer.Serialize(payload);
+        using var requestContent = new StringContent(json, Encoding.UTF8, "application/json");
+        using var request = new HttpRequestMessage(HttpMethod.Post, url) { Content = requestContent };
+        using var response = await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+
+        if (response.StatusCode == HttpStatusCode.TooManyRequests)
+            throw new RateLimitException("Gemini streaming API rate limit exceeded");
+
+        response.EnsureSuccessStatusCode();
+
+        var fullText = new StringBuilder();
+        using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+        using var reader = new System.IO.StreamReader(stream);
+
+        while (!reader.EndOfStream && !cancellationToken.IsCancellationRequested)
+        {
+            var line = await reader.ReadLineAsync();
+            if (string.IsNullOrWhiteSpace(line)) continue;
+            if (!line.StartsWith("data: ")) continue;
+
+            var dataJson = line["data: ".Length..];
+            if (dataJson == "[DONE]") break;
+
+            try
+            {
+                using var doc = JsonDocument.Parse(dataJson);
+                var text = doc.RootElement
+                    .GetProperty("candidates")[0]
+                    .GetProperty("content")
+                    .GetProperty("parts")[0]
+                    .GetProperty("text")
+                    .GetString();
+
+                if (!string.IsNullOrEmpty(text))
+                {
+                    fullText.Append(text);
+                    await onChunk(text);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "Could not parse SSE chunk: {Line}", line);
+            }
+        }
+
+        return fullText.Length > 0 ? fullText.ToString() : "No response generated.";
+    }
+
     public async Task<bool> DeleteSessionAsync(int sessionId, int userId)
     {
         var session = await _uow.ChatSessions
@@ -459,3 +779,4 @@ public class ChatService : IChatService
         return true;
     }
 }
+

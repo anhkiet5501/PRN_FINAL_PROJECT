@@ -8,6 +8,7 @@ using System.Security.Claims;
 
 namespace PRN222_Assignment2.Pages.Chat;
 
+[IgnoreAntiforgeryToken]
 public class IndexModel : PageModel
 {
     private readonly IChatService _chatService;
@@ -56,6 +57,14 @@ public class IndexModel : PageModel
             if (CurrentSession != null)
                 Messages = await _chatService.GetMessagesAsync(sessionId.Value);
         }
+        else if (Sessions.Any())
+        {
+            // Auto-select the most recent session
+            var first = Sessions.First();
+            CurrentSessionId = first.ChatSessionId;
+            CurrentSession = first;
+            Messages = await _chatService.GetMessagesAsync(first.ChatSessionId);
+        }
 
         await LoadDropdownsAsync();
     }
@@ -76,28 +85,19 @@ public class IndexModel : PageModel
         return RedirectToPage(new { sessionId = session.ChatSessionId });
     }
 
-    // ── POST: Gửi tin nhắn (AJAX handler — trả về JSON) ───────────────
-    /// <summary>
-    /// Razor Page AJAX handler. Called via fetch("/Chat?handler=SendMessage", POST).
-    /// Returns JSON instead of redirecting.
-    /// </summary>
+    // ── POST: Gửi tin nhắn (AJAX HTTP fallback) ───────────────────────
     public async Task<IActionResult> OnPostSendMessageAsync(
         [FromBody] SendMessageDto dto,
         CancellationToken cancellationToken)
     {
         if (!ModelState.IsValid || dto.ChatSessionId <= 0 || string.IsNullOrWhiteSpace(dto.Question))
         {
-            return new JsonResult(new
-            {
-                isError = true,
-                errorMessage = "Yêu cầu không hợp lệ."
-            });
+            return new JsonResult(new { isError = true, errorMessage = "Yêu cầu không hợp lệ." });
         }
 
         try
         {
             var result = await _chatService.SendMessageAsync(dto, cancellationToken);
-            // Serialize to camelCase for JS
             return new JsonResult(result, new System.Text.Json.JsonSerializerOptions
             {
                 PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase
@@ -106,11 +106,71 @@ public class IndexModel : PageModel
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error in OnPostSendMessageAsync for session {Id}", dto.ChatSessionId);
+            return new JsonResult(new { isError = true, errorMessage = "Lỗi máy chủ. Vui lòng thử lại." });
+        }
+    }
+
+    // ── GET: Tải tin nhắn của session (AJAX) ─────────────────────────
+    public async Task<IActionResult> OnGetSessionMessagesAsync(int sessionId)
+    {
+        try
+        {
+            var userId = GetUserId();
+            // Verify session belongs to user
+            var session = await _chatService.GetSessionAsync(sessionId);
+            if (session == null)
+                return new JsonResult(new { success = false, message = "Phiên không tồn tại." });
+
+            var messages = await _chatService.GetMessagesAsync(sessionId);
+            var currentSession = session;
+
             return new JsonResult(new
             {
-                isError = true,
-                errorMessage = "Lỗi máy chủ. Vui lòng thử lại."
+                success = true,
+                session = currentSession,
+                messages = messages
+            }, new System.Text.Json.JsonSerializerOptions
+            {
+                PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase
             });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading session messages for {SessionId}", sessionId);
+            return new JsonResult(new { success = false, message = "Không thể tải tin nhắn." });
+        }
+    }
+
+    // ── GET: Tài liệu của môn học (AJAX — cho document sidebar) ──────
+    public async Task<IActionResult> OnGetSubjectDocumentsAsync(int subjectId)
+    {
+        try
+        {
+            var docs = await _uow.Documents.Query()
+                .Where(d => d.Chapter.SubjectId == subjectId && d.Status == "Indexed")
+                .OrderBy(d => d.Chapter.ChapterName)
+                .ThenBy(d => d.OriginalFileName)
+                .Select(d => new
+                {
+                    d.DocumentId,
+                    Name = d.OriginalFileName ?? d.FileName,
+                    d.FileType,
+                    d.FileSizeBytes,
+                    ChapterName = d.Chapter.ChapterName,
+                    d.TotalChunks
+                })
+                .ToListAsync();
+
+            return new JsonResult(new { success = true, documents = docs },
+                new System.Text.Json.JsonSerializerOptions
+                {
+                    PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase
+                });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading documents for subject {SubjectId}", subjectId);
+            return new JsonResult(new { success = false, message = "Không thể tải tài liệu." });
         }
     }
 

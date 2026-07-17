@@ -113,6 +113,7 @@ public class UploadDocumentDto
 public class ChatSessionDto
 {
     public int ChatSessionId { get; set; }
+    public int SubjectId { get; set; }
     public string SessionTitle { get; set; } = string.Empty;
     public string SubjectName { get; set; } = string.Empty;
     public string AiModelName { get; set; } = string.Empty;
@@ -155,6 +156,8 @@ public class SendMessageDto
 {
     public int ChatSessionId { get; set; }
     public string Question { get; set; } = string.Empty;
+    public bool RestrictToDocs { get; set; } = true;
+    public List<int> SelectedDocIds { get; set; } = [];
 }
 
 public class ChatResponseDto
