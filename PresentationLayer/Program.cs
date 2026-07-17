@@ -207,6 +207,25 @@ using (var scope = app.Services.CreateScope())
             db.SaveChanges();
             logger.LogInformation("Updated {Count} deprecated embedding model(s) to gemini-embedding-001.", deprecatedModels.Count);
         }
+
+        // Upgrade deprecated AI chat models to gemini-2.0-flash-lite (higher free-tier RPM)
+        var deprecatedAiModels = db.AiModels
+            .Where(m => m.ModelName == "gemini-1.0-flash-lite"
+                     || m.ModelName == "gemini-1.5-flash"
+                     || m.ModelName == "gemini-1.5-flash-lite"
+                     || m.ModelName == "gemini-2.0-flash"
+                     || m.ModelName == "gemini-pro")
+            .ToList();
+        if (deprecatedAiModels.Count > 0)
+        {
+            foreach (var model in deprecatedAiModels)
+            {
+                model.ModelName = "gemini-2.0-flash-lite";
+                model.Description = "Google Gemini 2.0 Flash Lite — higher rate limit (30 RPM)";
+            }
+            db.SaveChanges();
+            logger.LogInformation("Updated {Count} deprecated AI model(s) to gemini-2.0-flash-lite.", deprecatedAiModels.Count);
+        }
     }
     catch (Exception ex)
     {

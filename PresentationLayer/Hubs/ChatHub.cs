@@ -41,9 +41,8 @@ public class ChatHub : Hub
             return;
         }
 
-        using var cts = new CancellationTokenSource();
-        // Cancel stream when client disconnects
-        Context.ConnectionAborted.Register(() => cts.Cancel());
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(Context.ConnectionAborted);
+        cts.CancelAfter(TimeSpan.FromSeconds(90));
 
         ChatResponseDto result;
         try
@@ -65,7 +64,8 @@ public class ChatHub : Hub
         }
         catch (OperationCanceledException)
         {
-            return; // Client disconnected
+            await Clients.Caller.SendAsync("StreamError", "Hết thời gian chờ phản hồi. Vui lòng thử lại.", false);
+            return;
         }
         catch (Exception ex)
         {

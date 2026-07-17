@@ -268,6 +268,9 @@ public class ChatService : IChatService
                     """;
             }
 
+            // Brief pause between embed + generate to avoid burst rate limits on free tier
+            await Task.Delay(1200, cancellationToken);
+
             // 6. Call Gemini API with retry on 429
             var (answer, totalTokens) = await CallGeminiWithRetryAsync(
                 session.AiModel.ModelName,
@@ -366,6 +369,33 @@ public class ChatService : IChatService
 
     // ── Gemini Chat API Call with 429 Retry ──────────────────────────
 
+    /// <summary>Upgrade deprecated/low-quota models to gemini-2.0-flash-lite (higher RPM).</summary>
+    private static string NormalizeChatModelName(string modelName)
+    {
+        if (string.IsNullOrWhiteSpace(modelName))
+            return "gemini-2.0-flash-lite";
+
+        return modelName.Trim().ToLowerInvariant() switch
+        {
+            "gemini-1.0-flash-lite" or "gemini-1.5-flash" or "gemini-1.5-flash-lite"
+                or "gemini-2.0-flash" or "gemini-pro" => "gemini-2.0-flash-lite",
+            _ => modelName.Trim()
+        };
+    }
+
+    private static int GetRateLimitDelayMs(HttpResponseMessage? response, int attempt)
+    {
+        // Free tier often needs longer waits — start at 5s, exponential backoff
+        var delayMs = Math.Max(5000, 5000 * (int)Math.Pow(2, attempt - 1));
+        if (response?.Headers.TryGetValues("Retry-After", out var values) == true
+            && int.TryParse(values.FirstOrDefault(), out var retryAfter))
+        {
+            delayMs = Math.Max(delayMs, retryAfter * 1000);
+        }
+
+        return delayMs;
+    }
+
     private async Task<(string Text, int TotalTokens)> CallGeminiWithRetryAsync(
         string modelName,
         string systemPrompt,
@@ -373,6 +403,7 @@ public class ChatService : IChatService
         string userQuestion,
         CancellationToken cancellationToken)
     {
+        modelName = NormalizeChatModelName(modelName);
         var url = $"https://generativelanguage.googleapis.com/v1beta/models/{modelName}:generateContent?key={_apiKeys.Gemini}";
 
         // Build contents array (history + current question)
@@ -409,12 +440,7 @@ public class ChatService : IChatService
                     if (attempt >= maxRetries)
                         throw new RateLimitException("Gemini chat API rate limit exceeded after max retries");
 
-                    // Check Retry-After header from Gemini
-                    int delayMs = 2000 * (int)Math.Pow(2, attempt - 1); // 2s, 4s, 8s, 16s, 32s
-                    if (response.Headers.TryGetValues("Retry-After", out var values)
-                        && int.TryParse(values.FirstOrDefault(), out int retryAfter))
-                        delayMs = Math.Max(delayMs, retryAfter * 1000);
-
+                    var delayMs = GetRateLimitDelayMs(response, attempt);
                     _logger.LogWarning("Gemini API rate limit (429) hit. Retry attempt {Attempt}/{MaxRetries} waiting {Delay}ms before retrying.", attempt, maxRetries, delayMs);
                     await Task.Delay(delayMs, cancellationToken);
                     continue;
@@ -476,6 +502,25 @@ public class ChatService : IChatService
         }
 
         return (text, totalTokens);
+    }
+
+    /// <summary>Send answer word-by-word to client for typing effect (incremental chunks).</summary>
+    private static async Task EmitAnswerInChunksAsync(
+        string text,
+        Func<string, Task> onChunk,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrEmpty(text)) return;
+
+        var words = text.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        for (var i = 0; i < words.Length; i++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var piece = i == 0 ? words[i] : " " + words[i];
+            await onChunk(piece);
+            if (i < words.Length - 1)
+                await Task.Delay(10, cancellationToken);
+        }
     }
 
     public async Task<ChatResponseDto> SendMessageStreamingAsync(
@@ -612,14 +657,26 @@ public class ChatService : IChatService
                     """;
             }
 
-            // 6. Call Gemini Streaming API
-            var fullAnswer = await CallGeminiStreamingAsync(
-                session.AiModel.ModelName,
+            // Brief pause between embed + generate to avoid burst rate limits on free tier
+            await Task.Delay(1200, cancellationToken);
+
+            // 6. Call Gemini API (non-streaming — more reliable on free tier) + simulate typing
+            var chatModel = NormalizeChatModelName(session.AiModel.ModelName);
+            if (chatModel != session.AiModel.ModelName)
+            {
+                _logger.LogWarning(
+                    "Chat model '{OldModel}' upgraded to '{NewModel}' for higher rate limit.",
+                    session.AiModel.ModelName, chatModel);
+            }
+
+            var (fullAnswer, _) = await CallGeminiWithRetryAsync(
+                chatModel,
                 systemPrompt,
                 history.Select(h => (h.Role, h.Content)).ToList(),
                 dto.Question,
-                onChunk,
                 cancellationToken);
+
+            await EmitAnswerInChunksAsync(fullAnswer, onChunk, cancellationToken);
 
             stopwatch.Stop();
 
@@ -683,6 +740,14 @@ public class ChatService : IChatService
                 }).ToList()
             };
         }
+        catch (RateLimitException)
+        {
+            return new ChatResponseDto
+            {
+                IsError = true,
+                ErrorMessage = "⚠️ Gemini API đang bận — vui lòng chờ 30 giây rồi thử lại. (API rate limit)"
+            };
+        }
         catch (OperationCanceledException)
         {
             return new ChatResponseDto { IsError = true, ErrorMessage = "Request was cancelled." };
@@ -702,6 +767,7 @@ public class ChatService : IChatService
         Func<string, Task> onChunk,
         CancellationToken cancellationToken)
     {
+        modelName = NormalizeChatModelName(modelName);
         var url = $"https://generativelanguage.googleapis.com/v1beta/models/{modelName}:streamGenerateContent?alt=sse&key={_apiKeys.Gemini}";
 
         var contents = new List<object>();
@@ -721,7 +787,7 @@ public class ChatService : IChatService
         var json = JsonSerializer.Serialize(payload);
 
         int attempt = 0;
-        const int maxRetries = 5;
+        const int maxStreamingRetries = 2;
 
         while (true)
         {
@@ -730,20 +796,25 @@ public class ChatService : IChatService
             using var request = new HttpRequestMessage(HttpMethod.Post, url) { Content = requestContent };
             using var response = await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
 
-            // Handle 429 Rate Limit with retry
+            // Handle 429 Rate Limit — retry streaming briefly, then fall back to generateContent
             if (response.StatusCode == HttpStatusCode.TooManyRequests)
             {
                 attempt++;
-                if (attempt >= maxRetries)
-                    throw new RateLimitException("Gemini streaming API rate limit exceeded after max retries");
+                if (attempt >= maxStreamingRetries)
+                {
+                    _logger.LogWarning(
+                        "Streaming rate limited after {Attempt} attempts — falling back to generateContent.",
+                        attempt);
+                    var (fallbackText, _) = await CallGeminiWithRetryAsync(
+                        modelName, systemPrompt, history, userQuestion, cancellationToken);
+                    await onChunk(fallbackText);
+                    return fallbackText;
+                }
 
-                int delayMs = 2000 * (int)Math.Pow(2, attempt - 1); // 2s, 4s, 8s, 16s
-                if (response.Headers.TryGetValues("Retry-After", out var values)
-                    && int.TryParse(values.FirstOrDefault(), out int retryAfter))
-                    delayMs = Math.Max(delayMs, retryAfter * 1000);
-
-                _logger.LogWarning("Gemini streaming API rate limit (429) hit. Retry attempt {Attempt}/{MaxRetries} waiting {Delay}ms.", attempt, maxRetries, delayMs);
-                await onChunk($"⏳ API đang bận, thử lại sau {delayMs / 1000}s...\n");
+                var delayMs = GetRateLimitDelayMs(response, attempt);
+                _logger.LogWarning(
+                    "Gemini streaming API rate limit (429) hit. Retry attempt {Attempt}/{MaxRetries} waiting {Delay}ms.",
+                    attempt, maxStreamingRetries, delayMs);
                 await Task.Delay(delayMs, cancellationToken);
                 continue;
             }
