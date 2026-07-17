@@ -237,6 +237,14 @@ public class BenchmarkResultDto
     public string? ErrorMessage { get; set; }
 }
 
+public class TestSetDto
+{
+    public int TestSetId { get; set; }
+    public string Question { get; set; } = string.Empty;
+    public string ExpectedAnswer { get; set; } = string.Empty;
+    public int OrderIndex { get; set; }
+}
+
 // ── Admin Statistics DTOs ────────────────────────────────────────────
 
 public class MonthlyCountDto

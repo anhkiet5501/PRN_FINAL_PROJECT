@@ -3,6 +3,7 @@ using BusinessLayer.Services;
 using BusinessLayer.Strategies;
 using BusinessLayer.Interfaces;
 using DataAccessLayer.Context;
+using DataAccessLayer.Entities;
 using DataAccessLayer.Repositories;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.EntityFrameworkCore;
@@ -225,6 +226,55 @@ using (var scope = app.Services.CreateScope())
             }
             db.SaveChanges();
             logger.LogInformation("Updated {Count} deprecated AI model(s) to gemini-2.0-flash-lite.", deprecatedAiModels.Count);
+        }
+
+        // Seed a default benchmark experiment if none exists
+        if (!db.Experiments.Any())
+        {
+            var subjectId = db.Documents
+                .Where(d => d.Status == "Indexed")
+                .Select(d => d.Chapter.SubjectId)
+                .FirstOrDefault();
+
+            if (subjectId == 0)
+                subjectId = db.Subjects.Select(s => s.SubjectId).FirstOrDefault();
+
+            if (subjectId > 0)
+            {
+                var experiment = new Experiment
+                {
+                    SubjectId = subjectId,
+                    EmbeddingModelId = 1,
+                    AiModelId = 1,
+                    ChunkingStrategyId = 1,
+                    ExperimentName = "Demo RAG Benchmark - Gemini + FixedSize 512",
+                    Description = "Experiment mẫu đánh giá chất lượng RAG pipeline",
+                    TopK = 3,
+                    Status = "Pending",
+                    CreatedAt = DateTime.UtcNow
+                };
+                db.Experiments.Add(experiment);
+                db.SaveChanges();
+
+                var sampleTests = BenchmarkService.GetDefaultSampleTestCases();
+
+                for (var i = 0; i < sampleTests.Length; i++)
+                {
+                    db.TestSets.Add(new TestSet
+                    {
+                        ExperimentId = experiment.ExperimentId,
+                        Question = sampleTests[i].Question,
+                        ExpectedAnswer = sampleTests[i].ExpectedAnswer,
+                        OrderIndex = i + 1,
+                        CreatedAt = DateTime.UtcNow
+                    });
+                }
+
+                db.SaveChanges();
+                logger.LogInformation(
+                    "Seeded benchmark experiment #{Id} with {Count} sample test cases for subject #{SubjectId}.",
+                    experiment.ExperimentId, sampleTests.Length, subjectId);
+            }
         }
     }
     catch (Exception ex)

@@ -18,7 +18,8 @@ public class DetailsModel : PageModel
     }
 
     public ExperimentDto? Experiment { get; set; }
-    public IEnumerable<BenchmarkResultDto> Results { get; set; } = new List<BenchmarkResultDto>();
+    public IEnumerable<BenchmarkResultDto> Results { get; set; } = [];
+    public IEnumerable<TestSetDto> TestSets { get; set; } = [];
     public int SubjectId { get; set; }
 
     [BindProperty]
@@ -26,12 +27,8 @@ public class DetailsModel : PageModel
 
     public async Task<IActionResult> OnGetAsync(int experimentId)
     {
-        Experiment = await _benchmarkService.GetExperimentAsync(experimentId);
+        await LoadPageAsync(experimentId);
         if (Experiment == null) return NotFound();
-
-        SubjectId = Experiment.SubjectId;
-        Results = await _benchmarkService.GetResultsAsync(experimentId);
-
         return Page();
     }
 
@@ -46,5 +43,39 @@ public class DetailsModel : PageModel
         await _benchmarkService.AddTestCaseAsync(experimentId, TestCaseInput.Question, TestCaseInput.ExpectedAnswer);
         TempData["Success"] = "Đã thêm Test Case thành công.";
         return RedirectToPage(new { experimentId });
+    }
+
+    public async Task<IActionResult> OnPostAddSampleTestCasesAsync(int experimentId)
+    {
+        var added = await _benchmarkService.AddSampleTestCasesAsync(experimentId);
+        TempData["Success"] = added > 0
+            ? $"Đã thêm {added} test case mẫu."
+            : "Các test case mẫu đã tồn tại.";
+        return RedirectToPage(new { experimentId });
+    }
+
+    public async Task<IActionResult> OnPostRunExperimentAsync(int experimentId)
+    {
+        try
+        {
+            await _benchmarkService.RunExperimentAsync(experimentId);
+            TempData["Success"] = "Đã chạy Benchmark thành công!";
+        }
+        catch (Exception ex)
+        {
+            TempData["Error"] = "Lỗi khi chạy Benchmark: " + ex.Message;
+        }
+
+        return RedirectToPage(new { experimentId });
+    }
+
+    private async Task LoadPageAsync(int experimentId)
+    {
+        Experiment = await _benchmarkService.GetExperimentAsync(experimentId);
+        if (Experiment == null) return;
+
+        SubjectId = Experiment.SubjectId;
+        Results = await _benchmarkService.GetResultsAsync(experimentId);
+        TestSets = await _benchmarkService.GetTestSetsAsync(experimentId);
     }
 }

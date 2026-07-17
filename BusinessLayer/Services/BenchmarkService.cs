@@ -13,8 +13,10 @@ public interface IBenchmarkService
     Task<ExperimentDto?> GetExperimentAsync(int experimentId);
     Task<ExperimentDto> CreateExperimentAsync(CreateExperimentDto dto);
     Task<bool> AddTestCaseAsync(int experimentId, string question, string expectedAnswer);
+    Task<int> AddSampleTestCasesAsync(int experimentId);
     Task RunExperimentAsync(int experimentId, CancellationToken cancellationToken = default);
     Task<IEnumerable<BenchmarkResultDto>> GetResultsAsync(int experimentId);
+    Task<IEnumerable<TestSetDto>> GetTestSetsAsync(int experimentId);
 }
 
 public class BenchmarkService : IBenchmarkService
@@ -136,6 +138,48 @@ public class BenchmarkService : IBenchmarkService
         return true;
     }
 
+    public async Task<int> AddSampleTestCasesAsync(int experimentId)
+    {
+        var samples = GetDefaultSampleTestCases();
+
+        var added = 0;
+        foreach (var (question, expected) in samples)
+        {
+            var exists = await _uow.TestSets.AnyAsync(t =>
+                t.ExperimentId == experimentId && t.Question == question);
+            if (exists) continue;
+
+            await AddTestCaseAsync(experimentId, question, expected);
+            added++;
+        }
+
+        return added;
+    }
+
+    public static (string Question, string ExpectedAnswer)[] GetDefaultSampleTestCases() =>
+    [
+        (
+            "PRN222 là môn học gì?",
+            "PRN222 là môn lập trình mạng, học phát triển ứng dụng web với ASP.NET Core, Razor Pages, Entity Framework và SignalR."
+        ),
+        (
+            "Assignment 2 yêu cầu làm gì?",
+            "Xây dựng hệ thống RAG-LMS: upload tài liệu, chia chunk, tạo embedding, chat AI hỏi đáp theo tài liệu và module benchmark đánh giá chất lượng RAG."
+        ),
+        (
+            "RAG hoạt động như thế nào trong hệ thống này?",
+            "Hệ thống embed câu hỏi, tìm các đoạn tài liệu liên quan bằng cosine similarity, rồi đưa ngữ cảnh vào prompt để AI trả lời dựa trên tài liệu môn học."
+        ),
+        (
+            "Chunking strategy Fixed Size 512 là gì?",
+            "Là cách chia tài liệu thành các đoạn có kích thước cố định 512 token, có overlap 64 token để giữ ngữ cảnh giữa các chunk."
+        ),
+        (
+            "Ai Model gemini-2.0-flash-lite dùng để làm gì?",
+            "Dùng để sinh câu trả lời chat AI cho sinh viên, dựa trên ngữ cảnh tài liệu đã retrieve từ RAG pipeline."
+        )
+    ];
+
     public async Task RunExperimentAsync(int experimentId, CancellationToken cancellationToken = default)
     {
         var experiment = await _uow.Experiments.Query()
@@ -144,6 +188,9 @@ public class BenchmarkService : IBenchmarkService
             .Include(e => e.AiModel)
             .FirstOrDefaultAsync(e => e.ExperimentId == experimentId)
             ?? throw new Exception($"Experiment {experimentId} not found");
+
+        if (!experiment.TestSets.Any())
+            throw new Exception("Experiment chưa có test case nào. Hãy thêm ít nhất 1 câu hỏi trước khi chạy.");
 
         // Mark as Running
         experiment.Status = "Running";
@@ -231,7 +278,7 @@ public class BenchmarkService : IBenchmarkService
                 await _uow.SaveChangesAsync();
 
                 // Throttle between test cases to avoid Gemini quota
-                await Task.Delay(500, cancellationToken);
+                await Task.Delay(2000, cancellationToken);
             }
 
             experiment.Status = "Completed";
@@ -273,6 +320,21 @@ public class BenchmarkService : IBenchmarkService
                 AnswerSimilarityScore = r.AnswerSimilarityScore,
                 LatencyMs = r.LatencyMs,
                 ErrorMessage = r.ErrorMessage
+            })
+            .ToListAsync();
+    }
+
+    public async Task<IEnumerable<TestSetDto>> GetTestSetsAsync(int experimentId)
+    {
+        return await _uow.TestSets.Query()
+            .Where(t => t.ExperimentId == experimentId)
+            .OrderBy(t => t.OrderIndex)
+            .Select(t => new TestSetDto
+            {
+                TestSetId = t.TestSetId,
+                Question = t.Question,
+                ExpectedAnswer = t.ExpectedAnswer,
+                OrderIndex = t.OrderIndex
             })
             .ToListAsync();
     }

@@ -22,7 +22,7 @@ public class IndexModel : PageModel
     public IEnumerable<SubjectDto> Subjects { get; set; } = new List<SubjectDto>();
     public IEnumerable<ExperimentDto> Experiments { get; set; } = new List<ExperimentDto>();
 
-    [BindProperty(SupportsGet = true)]
+    [BindProperty(SupportsGet = true, Name = "subjectId")]
     public int? SelectedSubjectId { get; set; }
 
     public async Task OnGetAsync()
@@ -33,6 +33,10 @@ public class IndexModel : PageModel
             Subjects = await _subjectService.GetTeacherSubjectsAsync(userId);
         else
             Subjects = await _subjectService.GetAllAsync();
+
+        // Auto-select first subject when none chosen
+        if (!SelectedSubjectId.HasValue && Subjects.Any())
+            SelectedSubjectId = Subjects.First().SubjectId;
 
         if (SelectedSubjectId.HasValue)
         {
