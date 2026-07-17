@@ -262,16 +262,16 @@ public class AppDbContext : DbContext
             CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc)
         });
 
-        // Default AiModel (Gemini Flash)
+        // Default AiModel (Gemini Flash Lite - higher rate limit)
         modelBuilder.Entity<AiModel>().HasData(new AiModel
         {
             AiModelId = 1,
-            ModelName = "gemini-2.0-flash",
+            ModelName = "gemini-2.0-flash-lite",
             Provider = "Gemini",
             ApiEndpoint = "https://generativelanguage.googleapis.com/v1beta",
             MaxTokens = 8192,
             Temperature = 0.7,
-            Description = "Google Gemini 2.0 Flash — fast & cost-effective",
+            Description = "Google Gemini 2.0 Flash Lite — higher rate limit (30 RPM)",
             IsDefault = true,
             IsActive = true,
             CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc)

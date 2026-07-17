@@ -718,20 +718,42 @@ public class ChatService : IChatService
             contents
         };
 
-        using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(120) };
         var json = JsonSerializer.Serialize(payload);
-        using var requestContent = new StringContent(json, Encoding.UTF8, "application/json");
-        using var request = new HttpRequestMessage(HttpMethod.Post, url) { Content = requestContent };
-        using var response = await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
 
-        if (response.StatusCode == HttpStatusCode.TooManyRequests)
-            throw new RateLimitException("Gemini streaming API rate limit exceeded");
+        int attempt = 0;
+        const int maxRetries = 5;
 
-        response.EnsureSuccessStatusCode();
+        while (true)
+        {
+            using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(120) };
+            using var requestContent = new StringContent(json, Encoding.UTF8, "application/json");
+            using var request = new HttpRequestMessage(HttpMethod.Post, url) { Content = requestContent };
+            using var response = await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
 
-        var fullText = new StringBuilder();
-        using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
-        using var reader = new System.IO.StreamReader(stream);
+            // Handle 429 Rate Limit with retry
+            if (response.StatusCode == HttpStatusCode.TooManyRequests)
+            {
+                attempt++;
+                if (attempt >= maxRetries)
+                    throw new RateLimitException("Gemini streaming API rate limit exceeded after max retries");
+
+                int delayMs = 2000 * (int)Math.Pow(2, attempt - 1); // 2s, 4s, 8s, 16s
+                if (response.Headers.TryGetValues("Retry-After", out var values)
+                    && int.TryParse(values.FirstOrDefault(), out int retryAfter))
+                    delayMs = Math.Max(delayMs, retryAfter * 1000);
+
+                _logger.LogWarning("Gemini streaming API rate limit (429) hit. Retry attempt {Attempt}/{MaxRetries} waiting {Delay}ms.", attempt, maxRetries, delayMs);
+                await onChunk($"⏳ API đang bận, thử lại sau {delayMs / 1000}s...\n");
+                await Task.Delay(delayMs, cancellationToken);
+                continue;
+            }
+
+            response.EnsureSuccessStatusCode();
+
+            var fullText = new StringBuilder();
+            using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+            using var reader = new System.IO.StreamReader(stream);
+
 
         while (!reader.EndOfStream && !cancellationToken.IsCancellationRequested)
         {
@@ -764,7 +786,8 @@ public class ChatService : IChatService
             }
         }
 
-        return fullText.Length > 0 ? fullText.ToString() : "No response generated.";
+            return fullText.Length > 0 ? fullText.ToString() : "No response generated.";
+        }
     }
 
     public async Task<bool> DeleteSessionAsync(int sessionId, int userId)
