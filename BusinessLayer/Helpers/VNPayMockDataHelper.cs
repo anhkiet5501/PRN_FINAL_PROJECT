@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 
-namespace YourProjectName.Helpers
+namespace BusinessLayer.Helpers
 {
     /// <summary>
     /// Lớp này dùng để giả lập và ánh xạ (mapping) hàng ngàn mã lỗi, mã ngân hàng 
