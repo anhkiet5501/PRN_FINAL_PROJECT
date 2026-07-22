@@ -56,6 +56,7 @@ public class CreateSubjectDto
     public string SubjectCode { get; set; } = string.Empty;
     public string SubjectName { get; set; } = string.Empty;
     public string? Description { get; set; }
+    public int? TeacherId { get; set; }
 }
 
 public class ChapterDto

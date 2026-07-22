@@ -82,16 +82,17 @@
                         </div>
                     </div>
                     <div class="doc-actions">
-                        @if (doc.Status == "Indexed")
-                        {
-                            <a href="/Documents/Details/@doc.DocumentId" class="doc-action-chunk"><i class="bi bi-diagram-3"></i> Chunks (@doc.TotalChunks)</a>
-                        }
-                        else if (doc.Status == "Failed" && !string.IsNullOrEmpty(doc.ErrorMessage))
-                        {
-                            <span class="doc-error-hint" title="@doc.ErrorMessage"><i class="bi bi-exclamation-triangle"></i> Lỗi embed</span>
-                        }
                         @if (Model.CanEdit)
                         {
+                            if (doc.Status == "Indexed")
+                            {
+                                <a href="/Documents/Details/@doc.DocumentId" class="doc-action-chunk"><i class="bi bi-diagram-3"></i> Chunks (@doc.TotalChunks)</a>
+                            }
+                            else if (doc.Status == "Failed" && !string.IsNullOrEmpty(doc.ErrorMessage))
+                            {
+                                <span class="doc-error-hint" title="@doc.ErrorMessage"><i class="bi bi-exclamation-triangle"></i> Lỗi embed</span>
+                            }
+                            
                             <form method="post" asp-page-handler="Chunk" asp-route-id="@Model.Subject.SubjectId"
                                   class="doc-chunk-form" style="margin:0;">
                                 @Html.AntiForgeryToken()
@@ -104,6 +105,13 @@
                                 <input type="hidden" name="documentId" value="@doc.DocumentId" />
                                 <button type="submit" class="doc-action-delete"><i class="bi bi-trash"></i> Xóa</button>
                             </form>
+                        }
+                        else
+                        {
+                            if (doc.Status == "Failed" && !string.IsNullOrEmpty(doc.ErrorMessage))
+                            {
+                                <span class="doc-error-hint" title="@doc.ErrorMessage"><i class="bi bi-exclamation-triangle"></i> Lỗi</span>
+                            }
                         }
                     </div>
                 </div>

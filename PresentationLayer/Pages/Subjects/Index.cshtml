@@ -47,6 +47,12 @@
                                     <i class="bi bi-folder2-open"></i> @(Model.Filter == "mine" ? "QUẢN LÝ TÀI LIỆU" : "XEM CHI TIẾT")
                                 </button>
                             }
+                            else
+                            {
+                                <button type="button" class="btn-action btn-action-detail" title="Xem chi tiết" onclick="window.location='/Subjects/@subject.SubjectId'">
+                                    <i class="bi bi-folder2-open"></i> XEM CHI TIẾT
+                                </button>
+                            }
                             @if (Model.IsAdmin)
                             {
                                 <button type="button" class="btn-action btn-action-edit" title="Sửa" onclick="showEditSubjectModal(@subject.SubjectId, '@subject.SubjectCode', '@subject.SubjectName')">

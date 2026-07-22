@@ -29,6 +29,13 @@
             <input type="text" asp-for="SubjectDto.SubjectName" class="form-control" required placeholder="Ví dụ: Lập trình C#" />
         </div>
         
+        <div class="form-group" style="margin-bottom:0.75rem;">
+            <label class="form-label">Giáo viên phụ trách (Tùy chọn)</label>
+            <select asp-for="SubjectDto.TeacherId" asp-items="Model.Teachers" class="form-control">
+                <option value="">-- Chọn giáo viên --</option>
+            </select>
+        </div>
+        
         <div class="form-group" style="margin-bottom:1rem;">
             <label class="form-label">Mô tả (Tùy chọn)</label>
             <textarea asp-for="SubjectDto.Description" class="form-control" rows="4" placeholder="Mô tả ngắn gọn về môn học..."></textarea>

@@ -76,6 +76,17 @@ public class SubjectService : ISubjectService
             IsActive = true,
             CreatedAt = DateTime.UtcNow
         };
+
+        if (dto.TeacherId.HasValue)
+        {
+            subject.SubjectTeachers.Add(new SubjectTeacher
+            {
+                UserId = dto.TeacherId.Value,
+                IsSubjectHead = true,
+                AssignedAt = DateTime.UtcNow
+            });
+        }
+
         await _uow.Subjects.AddAsync(subject);
         await _uow.SaveChangesAsync();
         return await GetByIdAsync(subject.SubjectId) ?? throw new Exception("Subject not found after creation");
