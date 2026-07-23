@@ -135,6 +135,71 @@
     border: 1px solid var(--border);
 }
 
+.stats-filter-bar {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1rem 1.25rem;
+    margin-bottom: 1.25rem;
+    box-shadow: var(--shadow);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    align-items: flex-end;
+}
+.stats-filter-presets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    flex: 1;
+}
+.stats-period-btn {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.4rem 0.75rem;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: #f8fafc;
+    color: var(--text);
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-decoration: none;
+    transition: all 0.15s ease;
+}
+.stats-period-btn:hover { border-color: var(--accent); color: var(--accent); }
+.stats-period-btn.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+}
+.stats-custom-range {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: flex-end;
+}
+.stats-custom-range label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--text-muted);
+}
+.stats-custom-range input[type="date"] {
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.4rem 0.55rem;
+    font-size: 0.85rem;
+    background: #fff;
+}
+.stats-period-hint {
+    width: 100%;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    margin: 0;
+}
+
 @@media (max-width: 960px) {
     .stats-kpi-row { grid-template-columns: repeat(2, 1fr); }
     .stats-charts-row, .stats-tables-row { grid-template-columns: 1fr; }
@@ -149,6 +214,50 @@
     <a href="/Admin/Users" class="soft-btn btn-light"><i class="bi bi-people"></i> Quản lý người dùng</a>
 </div>
 
+@{
+    string PeriodHref(string p) => $"/Admin/Statistics?period={p}";
+    string ActivePeriod(string p) => Model.Period == p ? "active" : "";
+    var fromVal = Model.From?.ToString("yyyy-MM-dd")
+        ?? (s.FromUtc.HasValue ? s.FromUtc.Value.ToString("yyyy-MM-dd") : "");
+    var toVal = Model.To?.ToString("yyyy-MM-dd")
+        ?? (s.ToUtc.HasValue ? s.ToUtc.Value.AddDays(-1).ToString("yyyy-MM-dd") : DateTime.UtcNow.ToString("yyyy-MM-dd"));
+}
+
+<form method="get" class="stats-filter-bar" id="stats-filter-form">
+    <div class="stats-filter-presets">
+        <a class="stats-period-btn @ActivePeriod("today")" href="@PeriodHref("today")">Hôm nay</a>
+        <a class="stats-period-btn @ActivePeriod("7d")" href="@PeriodHref("7d")">7 ngày</a>
+        <a class="stats-period-btn @ActivePeriod("30d")" href="@PeriodHref("30d")">30 ngày</a>
+        <a class="stats-period-btn @ActivePeriod("month")" href="@PeriodHref("month")">Tháng này</a>
+        <a class="stats-period-btn @ActivePeriod("3m")" href="@PeriodHref("3m")">3 tháng</a>
+        <a class="stats-period-btn @ActivePeriod("6m")" href="@PeriodHref("6m")">6 tháng</a>
+        <a class="stats-period-btn @ActivePeriod("all")" href="@PeriodHref("all")">Toàn thời gian</a>
+        <a class="stats-period-btn @ActivePeriod("custom")" href="#" onclick="document.getElementById('period-custom').value='custom'; return false;">Tùy chọn</a>
+    </div>
+    <div class="stats-custom-range">
+        <input type="hidden" name="period" id="period-custom" value="@(Model.Period == "custom" ? "custom" : Model.Period)" />
+        <label>
+            Từ ngày
+            <input type="date" name="from" value="@fromVal" />
+        </label>
+        <label>
+            Đến ngày
+            <input type="date" name="to" value="@toVal" />
+        </label>
+        <button type="submit" class="soft-btn btn-primary" onclick="document.getElementById('period-custom').value='custom';">
+            <i class="bi bi-funnel"></i> Áp dụng
+        </button>
+    </div>
+    <p class="stats-period-hint">
+        <i class="bi bi-calendar3"></i>
+        Đang xem: <strong>@s.PeriodLabel</strong>
+        @if (s.FromUtc.HasValue)
+        {
+            <text> (@s.FromUtc.Value.ToLocalTime().ToString("dd/MM/yyyy") – @((s.ToUtc ?? DateTime.UtcNow).ToLocalTime().ToString("dd/MM/yyyy")))</text>
+        }
+    </p>
+</form>
+
 @* ── User overview ──────────────────────────────────────── *@
 <h2 class="stats-section-title"><i class="bi bi-people"></i> Tổng quan người dùng</h2>
 <div class="stats-kpi-row">
@@ -156,21 +265,21 @@
         <div class="stats-kpi-icon blue"><i class="bi bi-people-fill"></i></div>
         <div>
             <div class="stats-kpi-value">@s.TotalUsers</div>
-            <div class="stats-kpi-label">Tổng người dùng</div>
+            <div class="stats-kpi-label">@(s.Period == "all" ? "Tổng người dùng" : "Người dùng mới trong kỳ")</div>
         </div>
     </div>
     <div class="stats-kpi-card">
         <div class="stats-kpi-icon green"><i class="bi bi-person-check-fill"></i></div>
         <div>
             <div class="stats-kpi-value">@s.ActiveUsers</div>
-            <div class="stats-kpi-label">Tài khoản hoạt động</div>
+            <div class="stats-kpi-label">Tài khoản đang hoạt động</div>
         </div>
     </div>
     <div class="stats-kpi-card">
         <div class="stats-kpi-icon amber"><i class="bi bi-person-plus-fill"></i></div>
         <div>
             <div class="stats-kpi-value">@s.NewUsersThisMonth</div>
-            <div class="stats-kpi-label">Mới trong tháng</div>
+            <div class="stats-kpi-label">Đăng ký trong kỳ</div>
         </div>
     </div>
     <div class="stats-kpi-card">
@@ -188,13 +297,13 @@
         <div class="stats-chart-wrap"><canvas id="roleChart"></canvas></div>
     </div>
     <div class="stats-chart-card">
-        <div class="stats-chart-title"><i class="bi bi-graph-up"></i> Đăng ký mới (6 tháng)</div>
+        <div class="stats-chart-title"><i class="bi bi-graph-up"></i> Đăng ký mới theo tháng (@s.PeriodLabel)</div>
         <div class="stats-chart-wrap"><canvas id="regChart"></canvas></div>
     </div>
 </div>
 
 @* ── Knowledge Base ─────────────────────────────────────── *@
-<h2 class="stats-section-title"><i class="bi bi-database"></i> Knowledge Base Analytics</h2>
+<h2 class="stats-section-title"><i class="bi bi-database"></i> Thống kê kho tri thức</h2>
 <div class="stats-kpi-row">
     <div class="stats-kpi-card">
         <div class="stats-kpi-icon blue"><i class="bi bi-file-earmark-text-fill"></i></div>
@@ -204,24 +313,10 @@
         </div>
     </div>
     <div class="stats-kpi-card">
-        <div class="stats-kpi-icon purple"><i class="bi bi-puzzle-fill"></i></div>
-        <div>
-            <div class="stats-kpi-value">@kb.TotalChunks</div>
-            <div class="stats-kpi-label">Chunks</div>
-        </div>
-    </div>
-    <div class="stats-kpi-card">
-        <div class="stats-kpi-icon teal"><i class="bi bi-vector-pen"></i></div>
-        <div>
-            <div class="stats-kpi-value">@kb.TotalEmbeddings</div>
-            <div class="stats-kpi-label">Embeddings</div>
-        </div>
-    </div>
-    <div class="stats-kpi-card">
         <div class="stats-kpi-icon red"><i class="bi bi-exclamation-triangle-fill"></i></div>
         <div>
             <div class="stats-kpi-value">@kb.ErrorRatePercent.ToString("0.#")%</div>
-            <div class="stats-kpi-label">Tỷ lệ lỗi index</div>
+            <div class="stats-kpi-label">Tỷ lệ lỗi lập chỉ mục</div>
         </div>
     </div>
 </div>
@@ -230,28 +325,28 @@
         <div class="stats-kpi-icon green"><i class="bi bi-check-circle-fill"></i></div>
         <div>
             <div class="stats-kpi-value">@kb.IndexedDocuments</div>
-            <div class="stats-kpi-label">Đã index</div>
+            <div class="stats-kpi-label">Đã lập chỉ mục</div>
         </div>
     </div>
     <div class="stats-kpi-card">
         <div class="stats-kpi-icon amber"><i class="bi bi-hourglass-split"></i></div>
         <div>
             <div class="stats-kpi-value">@(kb.PendingDocuments + kb.ProcessingDocuments)</div>
-            <div class="stats-kpi-label">Pending / Processing</div>
+            <div class="stats-kpi-label">Chờ xử lý / Đang xử lý</div>
         </div>
     </div>
     <div class="stats-kpi-card">
         <div class="stats-kpi-icon blue"><i class="bi bi-stopwatch"></i></div>
         <div>
             <div class="stats-kpi-value">@(kb.AvgIndexingSeconds?.ToString("0.##") ?? "—")</div>
-            <div class="stats-kpi-label">TB thời gian index (s)</div>
+            <div class="stats-kpi-label">Thời gian lập chỉ mục TB (giây)</div>
         </div>
     </div>
     <div class="stats-kpi-card">
         <div class="stats-kpi-icon purple"><i class="bi bi-speedometer2"></i></div>
         <div>
             <div class="stats-kpi-value">@(kb.P95IndexingSeconds?.ToString("0.##") ?? "—")</div>
-            <div class="stats-kpi-label">P95 thời gian index (s)</div>
+            <div class="stats-kpi-label">Thời gian lập chỉ mục P95 (giây)</div>
         </div>
     </div>
 </div>
@@ -261,7 +356,7 @@
         <div class="stats-chart-wrap"><canvas id="docStatusChart"></canvas></div>
     </div>
     <div class="stats-table-card">
-        <h3><i class="bi bi-cloud-upload"></i> Top upload tài liệu</h3>
+        <h3><i class="bi bi-cloud-upload"></i> Người tải tài liệu nhiều nhất</h3>
         @if (s.TopUploaders.Any())
         {
             <table class="stats-table">
@@ -285,13 +380,13 @@
 </div>
 
 @* ── AI & RAG ───────────────────────────────────────────── *@
-<h2 class="stats-section-title"><i class="bi bi-robot"></i> AI &amp; RAG Analytics</h2>
+<h2 class="stats-section-title"><i class="bi bi-robot"></i> Thống kê AI &amp; RAG</h2>
 <div class="stats-kpi-row">
     <div class="stats-kpi-card">
         <div class="stats-kpi-icon blue"><i class="bi bi-chat-dots-fill"></i></div>
         <div>
             <div class="stats-kpi-value">@ai.TotalChatSessions</div>
-            <div class="stats-kpi-label">Cuộc chat</div>
+            <div class="stats-kpi-label">Cuộc trò chuyện</div>
         </div>
     </div>
     <div class="stats-kpi-card">
@@ -312,17 +407,17 @@
         <div class="stats-kpi-icon amber"><i class="bi bi-lightning-charge-fill"></i></div>
         <div>
             <div class="stats-kpi-value">@(ai.AvgLatencyMs?.ToString("0") ?? "—")</div>
-            <div class="stats-kpi-label">Latency TB (ms) · P95 @(ai.P95LatencyMs?.ToString("0") ?? "—")</div>
+            <div class="stats-kpi-label">Thời gian phản hồi TB (ms) · P95 @(ai.P95LatencyMs?.ToString("0") ?? "—")</div>
         </div>
     </div>
 </div>
 <div class="stats-charts-row">
     <div class="stats-chart-card">
-        <div class="stats-chart-title"><i class="bi bi-pie-chart"></i> Truy vấn có / không ngữ cảnh (@ai.ContextHitRatePercent.ToString("0.#")% có context)</div>
+        <div class="stats-chart-title"><i class="bi bi-pie-chart"></i> Truy vấn có / không ngữ cảnh (@ai.ContextHitRatePercent.ToString("0.#")% có ngữ cảnh)</div>
         <div class="stats-chart-wrap"><canvas id="contextChart"></canvas></div>
     </div>
     <div class="stats-table-card">
-        <h3><i class="bi bi-coin"></i> Top user theo token</h3>
+        <h3><i class="bi bi-coin"></i> Người dùng dùng nhiều token nhất</h3>
         @if (ai.TopTokenUsers.Any())
         {
             <table class="stats-table">
@@ -346,11 +441,11 @@
 </div>
 <div class="stats-tables-row">
     <div class="stats-table-card">
-        <h3><i class="bi bi-bookmark-star"></i> Top chủ đề (theo môn học)</h3>
+        <h3><i class="bi bi-bookmark-star"></i> Chủ đề được hỏi nhiều nhất (theo môn)</h3>
         @if (ai.TopSubjectsAsked.Any())
         {
             <table class="stats-table">
-                <thead><tr><th>#</th><th>Môn học</th><th>Phiên chat</th></tr></thead>
+                <thead><tr><th>#</th><th>Môn học</th><th>Phiên trò chuyện</th></tr></thead>
                 <tbody>
                     @{ var si = 1; }
                     @foreach (var item in ai.TopSubjectsAsked)
@@ -372,7 +467,7 @@
         @if (ai.TopRetrievedDocuments.Any())
         {
             <table class="stats-table">
-                <thead><tr><th>#</th><th>Tài liệu</th><th>Lượt cite</th></tr></thead>
+                <thead><tr><th>#</th><th>Tài liệu</th><th>Lượt trích dẫn</th></tr></thead>
                 <tbody>
                     @{ var di = 1; }
                     @foreach (var item in ai.TopRetrievedDocuments)
@@ -387,25 +482,25 @@
                 </tbody>
             </table>
         }
-        else { <div class="stats-empty">Chưa có citation.</div> }
+        else { <div class="stats-empty">Chưa có trích dẫn.</div> }
     </div>
 </div>
 
 @* ── Learning ───────────────────────────────────────────── *@
-<h2 class="stats-section-title"><i class="bi bi-mortarboard"></i> Learning Analytics</h2>
+<h2 class="stats-section-title"><i class="bi bi-mortarboard"></i> Thống kê học tập</h2>
 <div class="stats-kpi-row">
     <div class="stats-kpi-card">
         <div class="stats-kpi-icon green"><i class="bi bi-person-walking"></i></div>
         <div>
             <div class="stats-kpi-value">@learn.ActiveUsersLast7Days</div>
-            <div class="stats-kpi-label">User học (7 ngày)</div>
+            <div class="stats-kpi-label">@(s.Period == "all" ? "Người học (7 ngày)" : "Người học trong kỳ")</div>
         </div>
     </div>
     <div class="stats-kpi-card">
         <div class="stats-kpi-icon blue"><i class="bi bi-calendar-week"></i></div>
         <div>
             <div class="stats-kpi-value">@learn.ActiveUsersLast30Days</div>
-            <div class="stats-kpi-label">User học (30 ngày)</div>
+            <div class="stats-kpi-label">@(s.Period == "all" ? "Người học (30 ngày)" : "Người học trong kỳ")</div>
         </div>
     </div>
     <div class="stats-kpi-card">
@@ -419,13 +514,13 @@
         <div class="stats-kpi-icon amber"><i class="bi bi-chat-left-text"></i></div>
         <div>
             <div class="stats-kpi-value">@(s.TopChatUsers.FirstOrDefault()?.Count ?? 0)</div>
-            <div class="stats-kpi-label">Phiên chat nhiều nhất / user</div>
+            <div class="stats-kpi-label">Phiên chat nhiều nhất / người dùng</div>
         </div>
     </div>
 </div>
 <div class="stats-charts-row">
     <div class="stats-chart-card">
-        <div class="stats-chart-title"><i class="bi bi-clock-history"></i> Thời điểm học nhiều (giờ VN)</div>
+        <div class="stats-chart-title"><i class="bi bi-clock-history"></i> Thời điểm học nhiều (giờ Việt Nam)</div>
         <div class="stats-chart-wrap"><canvas id="peakHoursChart"></canvas></div>
     </div>
     <div class="stats-table-card">
@@ -475,7 +570,7 @@
         else { <div class="stats-empty">Chưa có dữ liệu.</div> }
     </div>
     <div class="stats-table-card">
-        <h3><i class="bi bi-people"></i> Top người dùng chat</h3>
+        <h3><i class="bi bi-people"></i> Người dùng trò chuyện nhiều nhất</h3>
         @if (s.TopChatUsers.Any())
         {
             <table class="stats-table">
@@ -484,9 +579,10 @@
                     @{ var ci = 1; }
                     @foreach (var u in s.TopChatUsers)
                     {
+                        var roleVi = u.Role == "Admin" ? "Quản trị" : u.Role == "Teacher" ? "Giảng viên" : u.Role == "Student" ? "Sinh viên" : u.Role;
                         <tr>
                             <td>@ci</td>
-                            <td style="font-weight:500;">@u.DisplayName <span class="stats-role-badge">@u.Role</span></td>
+                            <td style="font-weight:500;">@u.DisplayName <span class="stats-role-badge">@roleVi</span></td>
                             <td><strong>@u.Count</strong></td>
                         </tr>
                         ci++;
@@ -499,19 +595,19 @@
 </div>
 
 @* ── Finance & Tokens ───────────────────────────────────── *@
-<h2 class="stats-section-title"><i class="bi bi-wallet2"></i> Doanh thu & Tiêu thụ Token</h2>
+<h2 class="stats-section-title"><i class="bi bi-wallet2"></i> Doanh thu &amp; tiêu thụ token</h2>
 <div class="stats-charts-row">
     <div class="stats-chart-card">
-        <div class="stats-chart-title"><i class="bi bi-bar-chart"></i> Tổng Token theo tháng</div>
+        <div class="stats-chart-title"><i class="bi bi-bar-chart"></i> Tổng token theo tháng (@s.PeriodLabel)</div>
         <div class="stats-chart-wrap"><canvas id="tokensChart"></canvas></div>
     </div>
     <div class="stats-chart-card">
-        <div class="stats-chart-title"><i class="bi bi-graph-up-arrow"></i> Doanh thu nạp thẻ (VNĐ)</div>
+        <div class="stats-chart-title"><i class="bi bi-graph-up-arrow"></i> Doanh thu nạp thẻ (VNĐ) — @s.PeriodLabel</div>
         <div class="stats-chart-wrap"><canvas id="revenueChart"></canvas></div>
     </div>
 </div>
 <div class="stats-table-card" style="margin-bottom: 2rem;">
-    <h3><i class="bi bi-person-lines-fill"></i> Chi tiết chi tiêu của User</h3>
+    <h3><i class="bi bi-person-lines-fill"></i> Chi tiết chi tiêu của người dùng</h3>
     @if (s.UserPaymentStats.Any())
     {
         <div style="max-height: 400px; overflow-y: auto;">
@@ -527,18 +623,18 @@
                     </tr>
                 </thead>
                 <tbody>
-                    @{ var ui = 1; }
+                    @{ var payIdx = 1; }
                     @foreach (var user in s.UserPaymentStats)
                     {
                         <tr>
-                            <td>@ui</td>
+                            <td>@payIdx</td>
                             <td style="font-weight:500;">@user.FullName</td>
                             <td>@user.Email</td>
                             <td><span class="badge" style="background:var(--accent);color:#fff;padding:4px 8px;border-radius:4px;">@user.CurrentPlan</span></td>
                             <td><strong>@user.TotalTokensUsed.ToString("N0")</strong></td>
                             <td style="color:#16a34a; font-weight:700;">@user.TotalMoneySpent.ToString("N0") đ</td>
                         </tr>
-                        ui++;
+                        payIdx++;
                     }
                 </tbody>
             </table>
@@ -598,7 +694,7 @@
     }
 
     doughnut('roleChart',
-        ['Admin', 'Giảng viên', 'Sinh viên'],
+        ['Quản trị', 'Giảng viên', 'Sinh viên'],
         [@s.AdminCount, @s.TeacherCount, @s.StudentCount],
         ['#7c3aed', '#0d9488', '#2563eb']);
 
@@ -631,7 +727,7 @@
     }
 
     bar('docStatusChart',
-        ['Pending', 'Processing', 'Indexed', 'Failed'],
+        ['Chờ xử lý', 'Đang xử lý', 'Đã lập chỉ mục', 'Thất bại'],
         [@kb.PendingDocuments, @kb.ProcessingDocuments, @kb.IndexedDocuments, @kb.FailedDocuments],
         '#2563eb');
 

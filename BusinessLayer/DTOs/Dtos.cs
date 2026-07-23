@@ -337,6 +337,11 @@ public class UserPaymentStatsDto
 
 public class AdminStatisticsDto
 {
+    public string Period { get; set; } = "30d";
+    public string PeriodLabel { get; set; } = "30 ngày gần đây";
+    public DateTime? FromUtc { get; set; }
+    public DateTime? ToUtc { get; set; }
+
     public int TotalUsers { get; set; }
     public int AdminCount { get; set; }
     public int TeacherCount { get; set; }
