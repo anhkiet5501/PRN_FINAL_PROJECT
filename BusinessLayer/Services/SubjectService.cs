@@ -44,7 +44,15 @@ public class SubjectService : ISubjectService
                 Description = s.Description,
                 IsActive = s.IsActive,
                 ChapterCount = s.Chapters.Count,
-                DocumentCount = s.Chapters.SelectMany(c => c.Documents).Count()
+                DocumentCount = s.Chapters.SelectMany(c => c.Documents).Count(),
+                HeadTeacherId = s.SubjectTeachers
+                    .Where(st => st.IsSubjectHead)
+                    .Select(st => (int?)st.UserId)
+                    .FirstOrDefault(),
+                HeadTeacherName = s.SubjectTeachers
+                    .Where(st => st.IsSubjectHead)
+                    .Select(st => st.User.FullName ?? st.User.Username)
+                    .FirstOrDefault()
             })
             .ToListAsync();
     }
@@ -61,7 +69,15 @@ public class SubjectService : ISubjectService
                 Description = s.Description,
                 IsActive = s.IsActive,
                 ChapterCount = s.Chapters.Count,
-                DocumentCount = s.Chapters.SelectMany(c => c.Documents).Count()
+                DocumentCount = s.Chapters.SelectMany(c => c.Documents).Count(),
+                HeadTeacherId = s.SubjectTeachers
+                    .Where(st => st.IsSubjectHead)
+                    .Select(st => (int?)st.UserId)
+                    .FirstOrDefault(),
+                HeadTeacherName = s.SubjectTeachers
+                    .Where(st => st.IsSubjectHead)
+                    .Select(st => st.User.FullName ?? st.User.Username)
+                    .FirstOrDefault()
             })
             .FirstOrDefaultAsync();
     }
@@ -328,7 +344,15 @@ public class SubjectService : ISubjectService
                 Description = st.Subject.Description,
                 IsActive = st.Subject.IsActive,
                 ChapterCount = st.Subject.Chapters.Count,
-                DocumentCount = st.Subject.Chapters.SelectMany(c => c.Documents).Count()
+                DocumentCount = st.Subject.Chapters.SelectMany(c => c.Documents).Count(),
+                HeadTeacherId = st.Subject.SubjectTeachers
+                    .Where(x => x.IsSubjectHead)
+                    .Select(x => (int?)x.UserId)
+                    .FirstOrDefault(),
+                HeadTeacherName = st.Subject.SubjectTeachers
+                    .Where(x => x.IsSubjectHead)
+                    .Select(x => x.User.FullName ?? x.User.Username)
+                    .FirstOrDefault()
             })
             .ToListAsync();
     }

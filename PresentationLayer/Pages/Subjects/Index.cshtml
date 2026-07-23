@@ -55,7 +55,8 @@
                             }
                             @if (Model.IsAdmin)
                             {
-                                <button type="button" class="btn-action btn-action-edit" title="Sửa" onclick="showEditSubjectModal(@subject.SubjectId, '@subject.SubjectCode', '@subject.SubjectName')">
+                                <button type="button" class="btn-action btn-action-edit" title="Sửa"
+                                        onclick="showEditSubjectModal(@subject.SubjectId, '@subject.SubjectCode.Replace("'", "\\'")', '@subject.SubjectName.Replace("'", "\\'")', @(subject.HeadTeacherId?.ToString() ?? "null"))">
                                     <i class="bi bi-pencil"></i> SỬA
                                 </button>
                             }
@@ -118,9 +119,10 @@
                         <option value="">-- Chọn giảng viên --</option>
                         @foreach (var teacher in Model.AllTeachers)
                         {
-                            <option value="@teacher.UserId">@teacher.FullName (@teacher.Email)</option>
+                            <option value="@teacher.UserId">@(string.IsNullOrWhiteSpace(teacher.FullName) ? teacher.Username : teacher.FullName) (@teacher.Email)</option>
                         }
                     </select>
+                    <p id="editSubTeacherHint" style="font-size:0.8rem;color:#64748b;margin:0.4rem 0 0;"></p>
                 </div>
             }
 
@@ -135,10 +137,21 @@
 @section Scripts {
     <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.0/signalr.min.js"></script>
     <script>
-        function showEditSubjectModal(id, code, name) {
+        function showEditSubjectModal(id, code, name, teacherId) {
             document.getElementById('editSubId').value = id;
             document.getElementById('editSubCode').value = code;
             document.getElementById('editSubName').value = name;
+            const teacherSelect = document.getElementById('editSubTeacher');
+            const hint = document.getElementById('editSubTeacherHint');
+            if (teacherSelect) {
+                teacherSelect.value = teacherId != null && teacherId !== '' ? String(teacherId) : '';
+                if (hint) {
+                    const opt = teacherSelect.options[teacherSelect.selectedIndex];
+                    hint.textContent = teacherSelect.value
+                        ? 'Hiện tại: ' + (opt ? opt.text : '')
+                        : 'Chưa gán giảng viên phụ trách';
+                }
+            }
             document.getElementById('edit-subject-modal').classList.add('show');
         }
         function hideEditSubjectModal() { document.getElementById('edit-subject-modal').classList.remove('show'); }
@@ -163,7 +176,7 @@
                 @if (User.IsInRole("Admin") || User.IsInRole("Teacher")) {
                     <text>
                     adminHtml += `
-                        <button type="button" class="btn-action btn-action-edit" title="Sửa" onclick="showEditSubjectModal(${data.subjectId}, '${data.subjectCode}', '${data.subjectName}')"><i class="bi bi-pencil"></i> SỬA</button>
+                        <button type="button" class="btn-action btn-action-edit" title="Sửa" onclick="showEditSubjectModal(${data.subjectId}, '${data.subjectCode}', '${data.subjectName}', ${data.headTeacherId ?? 'null'})"><i class="bi bi-pencil"></i> SỬA</button>
                     `;
                     </text>
                 }
@@ -202,7 +215,13 @@
                 if (row) {
                     row.querySelector('td:nth-child(2)').textContent = data.subjectCode;
                     row.querySelector('.subject-name').textContent = data.subjectName;
-                    
+                    const editBtn = row.querySelector('.btn-action-edit');
+                    if (editBtn) {
+                        const teacherId = data.headTeacherId != null ? data.headTeacherId : 'null';
+                        const code = String(data.subjectCode || '').replace(/'/g, "\\'");
+                        const name = String(data.subjectName || '').replace(/'/g, "\\'");
+                        editBtn.setAttribute('onclick', `showEditSubjectModal(${data.subjectId}, '${code}', '${name}', ${teacherId})`);
+                    }
                     row.style.transition = "background-color 0.5s";
                     row.style.backgroundColor = "#cfe2ff";
                     setTimeout(() => row.style.backgroundColor = "", 1000);

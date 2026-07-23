@@ -596,51 +596,99 @@
 
 @* ── Finance & Tokens ───────────────────────────────────── *@
 <h2 class="stats-section-title"><i class="bi bi-wallet2"></i> Doanh thu &amp; tiêu thụ token</h2>
+<div class="stats-kpi-row">
+    <div class="stats-kpi-card">
+        <div class="stats-kpi-icon green"><i class="bi bi-cash-stack"></i></div>
+        <div>
+            <div class="stats-kpi-value">@s.TotalRevenueInPeriod.ToString("N0")</div>
+            <div class="stats-kpi-label">Tổng doanh thu kỳ (đ)</div>
+        </div>
+    </div>
+    <div class="stats-kpi-card">
+        <div class="stats-kpi-icon teal"><i class="bi bi-calendar-check"></i></div>
+        <div>
+            <div class="stats-kpi-value">@s.PaymentsByDay.Count(d => d.Revenue > 0)</div>
+            <div class="stats-kpi-label">Số ngày có doanh thu</div>
+        </div>
+    </div>
+</div>
 <div class="stats-charts-row">
     <div class="stats-chart-card">
         <div class="stats-chart-title"><i class="bi bi-bar-chart"></i> Tổng token theo tháng (@s.PeriodLabel)</div>
         <div class="stats-chart-wrap"><canvas id="tokensChart"></canvas></div>
     </div>
     <div class="stats-chart-card">
-        <div class="stats-chart-title"><i class="bi bi-graph-up-arrow"></i> Doanh thu nạp thẻ (VNĐ) — @s.PeriodLabel</div>
-        <div class="stats-chart-wrap"><canvas id="revenueChart"></canvas></div>
+        <div class="stats-chart-title"><i class="bi bi-graph-up-arrow"></i> Doanh thu theo ngày (VNĐ) — @s.PeriodLabel</div>
+        <div class="stats-chart-wrap" style="height:280px;"><canvas id="revenueChart"></canvas></div>
     </div>
 </div>
-<div class="stats-table-card" style="margin-bottom: 2rem;">
-    <h3><i class="bi bi-person-lines-fill"></i> Chi tiết chi tiêu của người dùng</h3>
-    @if (s.UserPaymentStats.Any())
-    {
-        <div style="max-height: 400px; overflow-y: auto;">
-            <table class="stats-table">
-                <thead>
-                    <tr>
-                        <th>#</th>
-                        <th>Người dùng</th>
-                        <th>Email</th>
-                        <th>Gói hiện tại</th>
-                        <th>Token đã dùng</th>
-                        <th>Tổng chi trả</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @{ var payIdx = 1; }
-                    @foreach (var user in s.UserPaymentStats)
-                    {
+<div class="stats-tables-row">
+    <div class="stats-table-card">
+        <h3><i class="bi bi-calendar3"></i> Doanh thu từng ngày</h3>
+        @{
+            var daysWithRevenue = s.PaymentsByDay.Where(d => d.Revenue > 0).OrderByDescending(d => d.Date).ToList();
+        }
+        @if (daysWithRevenue.Any())
+        {
+            <div style="max-height: 360px; overflow-y: auto;">
+                <table class="stats-table">
+                    <thead>
                         <tr>
-                            <td>@payIdx</td>
-                            <td style="font-weight:500;">@user.FullName</td>
-                            <td>@user.Email</td>
-                            <td><span class="badge" style="background:var(--accent);color:#fff;padding:4px 8px;border-radius:4px;">@user.CurrentPlan</span></td>
-                            <td><strong>@user.TotalTokensUsed.ToString("N0")</strong></td>
-                            <td style="color:#16a34a; font-weight:700;">@user.TotalMoneySpent.ToString("N0") đ</td>
+                            <th>Ngày</th>
+                            <th>Số giao dịch</th>
+                            <th>Doanh thu</th>
                         </tr>
-                        payIdx++;
-                    }
-                </tbody>
-            </table>
-        </div>
-    }
-    else { <div class="stats-empty">Chưa có giao dịch nào.</div> }
+                    </thead>
+                    <tbody>
+                        @foreach (var day in daysWithRevenue)
+                        {
+                            <tr>
+                                <td style="font-weight:600;">@day.Label</td>
+                                <td>@day.TransactionCount</td>
+                                <td style="color:#16a34a; font-weight:700;">@day.Revenue.ToString("N0") đ</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        else { <div class="stats-empty">Chưa có doanh thu trong kỳ này.</div> }
+    </div>
+    <div class="stats-table-card">
+        <h3><i class="bi bi-person-lines-fill"></i> Chi tiết chi tiêu của người dùng</h3>
+        @if (s.UserPaymentStats.Any())
+        {
+            <div style="max-height: 360px; overflow-y: auto;">
+                <table class="stats-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Người dùng</th>
+                            <th>Gói</th>
+                            <th>Chi trả</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @{ var payIdx = 1; }
+                        @foreach (var user in s.UserPaymentStats)
+                        {
+                            <tr>
+                                <td>@payIdx</td>
+                                <td style="font-weight:500;">
+                                    @user.FullName
+                                    <div style="font-size:0.75rem;color:var(--text-muted);">@user.Email</div>
+                                </td>
+                                <td><span class="badge" style="background:var(--accent);color:#fff;padding:4px 8px;border-radius:4px;">@user.CurrentPlan</span></td>
+                                <td style="color:#16a34a; font-weight:700;">@user.TotalMoneySpent.ToString("N0") đ</td>
+                            </tr>
+                            payIdx++;
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        else { <div class="stats-empty">Chưa có giao dịch nào.</div> }
+    </div>
 </div>
 
 @section Scripts {
@@ -769,29 +817,54 @@
     }
 
     const revData = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(
-        s.PaymentsByMonth.Select(m => new { label = m.Label, revenue = m.Revenue }).ToList()));
+        s.PaymentsByDay.Select(m => new { label = m.Label, revenue = m.Revenue }).ToList()));
     const revCtx = document.getElementById('revenueChart');
     if (revCtx && revData) {
         new Chart(revCtx, {
-            type: 'line',
+            type: 'bar',
             data: {
                 labels: revData.map(m => m.label),
                 datasets: [{
-                    label: 'Doanh thu',
+                    label: 'Doanh thu (đ)',
                     data: revData.map(m => m.revenue),
+                    backgroundColor: 'rgba(22, 163, 74, 0.65)',
                     borderColor: '#16a34a',
-                    backgroundColor: 'rgba(22, 163, 74, 0.12)',
-                    fill: true,
-                    tension: 0.3,
-                    borderWidth: 2,
-                    pointRadius: 4,
-                    pointBackgroundColor: '#16a34a'
+                    borderWidth: 1,
+                    borderRadius: 4
                 }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: { legend: { display: false } }
+                scales: {
+                    x: {
+                        ticks: {
+                            maxRotation: 60,
+                            minRotation: 45,
+                            autoSkip: true,
+                            maxTicksLimit: 15
+                        }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            callback: function (v) { return Number(v).toLocaleString('vi-VN'); }
+                        }
+                    }
+                },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            title: function (items) {
+                                return 'Ngày ' + (items[0]?.label || '');
+                            },
+                            label: function (item) {
+                                return 'Doanh thu: ' + Number(item.raw).toLocaleString('vi-VN') + ' đ';
+                            }
+                        }
+                    }
+                }
             }
         });
     }

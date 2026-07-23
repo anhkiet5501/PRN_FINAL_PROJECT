@@ -136,25 +136,64 @@ public class StatisticsService : IStatisticsService
         var tokensByMonth = BuildMonthlyCounts(trendStart, trendEnd, tokensRaw
             .Select(r => (r.Year, r.Month, r.Count ?? 0)));
 
+        var payStart = hasFrom ? fromUtc!.Value : DateTime.UtcNow.AddYears(-2);
         var paymentsQuery = _uow.PaymentTransactions.Query()
-            .Where(p => p.Status == "Success" && p.CreatedAt >= trendStart && p.CreatedAt < trendEnd);
-        var paymentsRaw = await paymentsQuery
-            .GroupBy(p => new { p.CreatedAt.Year, p.CreatedAt.Month })
-            .Select(g => new { g.Key.Year, g.Key.Month, Revenue = g.Sum(x => x.Amount) })
+            .Where(p => p.Status == "Success" && p.CreatedAt >= payStart && p.CreatedAt < trendEnd);
+
+        var paymentRows = await paymentsQuery
+            .Select(p => new { At = p.PaidAt ?? p.CreatedAt, p.Amount })
             .ToListAsync();
 
-        var paymentsByMonth = new List<MonthlyRevenueDto>();
-        foreach (var bucket in EnumerateMonths(trendStart, trendEnd))
+        // Group by Vietnam calendar day (UTC+7)
+        var revenueByVnDay = paymentRows
+            .GroupBy(p => p.At.AddHours(7).Date)
+            .ToDictionary(
+                g => g.Key,
+                g => new { Revenue = g.Sum(x => (decimal)x.Amount), Count = g.Count() });
+
+        var paymentsByDay = new List<DailyRevenueDto>();
+        var daySpan = (trendEnd - payStart).TotalDays;
+        if (daySpan <= 62)
         {
-            var match = paymentsRaw.FirstOrDefault(r => r.Year == bucket.Year && r.Month == bucket.Month);
-            paymentsByMonth.Add(new MonthlyRevenueDto
+            for (var d = payStart.AddHours(7).Date; d <= trendEnd.AddHours(7).Date; d = d.AddDays(1))
             {
-                Year = bucket.Year,
-                Month = bucket.Month,
-                Label = $"{bucket.Month:D2}/{bucket.Year}",
-                Revenue = match?.Revenue ?? 0m
-            });
+                revenueByVnDay.TryGetValue(d, out var match);
+                paymentsByDay.Add(new DailyRevenueDto
+                {
+                    Date = d,
+                    Label = d.ToString("dd/MM/yyyy"),
+                    Revenue = match?.Revenue ?? 0m,
+                    TransactionCount = match?.Count ?? 0
+                });
+            }
         }
+        else
+        {
+            paymentsByDay = revenueByVnDay
+                .OrderBy(kv => kv.Key)
+                .Select(kv => new DailyRevenueDto
+                {
+                    Date = kv.Key,
+                    Label = kv.Key.ToString("dd/MM/yyyy"),
+                    Revenue = kv.Value.Revenue,
+                    TransactionCount = kv.Value.Count
+                })
+                .ToList();
+        }
+
+        var paymentsByMonth = paymentsByDay
+            .GroupBy(d => new { d.Date.Year, d.Date.Month })
+            .OrderBy(g => g.Key.Year).ThenBy(g => g.Key.Month)
+            .Select(g => new MonthlyRevenueDto
+            {
+                Year = g.Key.Year,
+                Month = g.Key.Month,
+                Label = $"{g.Key.Month:D2}/{g.Key.Year}",
+                Revenue = g.Sum(x => x.Revenue)
+            })
+            .ToList();
+
+        var totalRevenueInPeriod = paymentsByDay.Sum(d => d.Revenue);
 
         var paymentFilter = _uow.PaymentTransactions.Query().Where(p => p.Status == "Success");
         if (hasFrom)
@@ -221,6 +260,8 @@ public class StatisticsService : IStatisticsService
             TopUploaders = topUploaders,
             TokensByMonth = tokensByMonth,
             PaymentsByMonth = paymentsByMonth,
+            PaymentsByDay = paymentsByDay,
+            TotalRevenueInPeriod = totalRevenueInPeriod,
             UserPaymentStats = userPaymentStats,
             KnowledgeBase = knowledgeBase,
             AiRag = aiRag,

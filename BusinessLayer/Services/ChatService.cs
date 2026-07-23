@@ -124,6 +124,7 @@ public class ChatService : IChatService
             Citations = h.Citations.Select(c => new CitationDto
             {
                 DocumentChunkId = c.DocumentChunkId,
+                DocumentId = c.DocumentChunk.DocumentId,
                 ChunkText = c.DocumentChunk.ChunkText,
                 DocumentName = c.DocumentChunk.Document.OriginalFileName ?? c.DocumentChunk.Document.FileName,
                 ChapterName = c.DocumentChunk.Document.Chapter.ChapterName,
@@ -188,6 +189,7 @@ public class ChatService : IChatService
                 .Select(c => new
                 {
                     c.DocumentChunkId,
+                    c.DocumentId,
                     c.ChunkText,
                     c.EmbeddingJson,
                     c.Document.OriginalFileName,
@@ -217,6 +219,7 @@ public class ChatService : IChatService
                     .Select(r => (dynamic)new
                     {
                         allChunks[r.Index].DocumentChunkId,
+                        allChunks[r.Index].DocumentId,
                         allChunks[r.Index].ChunkText,
                         allChunks[r.Index].OriginalFileName,
                         allChunks[r.Index].ChapterName,
@@ -355,6 +358,7 @@ public class ChatService : IChatService
                 Citations = retrievedChunks.Select((c, idx) => new CitationDto
                 {
                     DocumentChunkId = c.DocumentChunkId,
+                    DocumentId = c.DocumentId,
                     ChunkText = c.ChunkText,
                     DocumentName = c.OriginalFileName ?? "Unknown",
                     ChapterName = c.ChapterName,
@@ -492,6 +496,7 @@ public class ChatService : IChatService
                 .Select(c => new
                 {
                     c.DocumentChunkId,
+                    c.DocumentId,
                     c.ChunkText,
                     c.EmbeddingJson,
                     c.Document.OriginalFileName,
@@ -521,6 +526,7 @@ public class ChatService : IChatService
                     .Select(r => (dynamic)new
                     {
                         allChunks[r.Index].DocumentChunkId,
+                        allChunks[r.Index].DocumentId,
                         allChunks[r.Index].ChunkText,
                         allChunks[r.Index].OriginalFileName,
                         allChunks[r.Index].ChapterName,
@@ -667,6 +673,7 @@ public class ChatService : IChatService
                 Citations = retrievedChunks.Select((c, idx) => new CitationDto
                 {
                     DocumentChunkId = c.DocumentChunkId,
+                    DocumentId = c.DocumentId,
                     ChunkText = c.ChunkText,
                     DocumentName = c.OriginalFileName ?? "Unknown",
                     ChapterName = c.ChapterName,

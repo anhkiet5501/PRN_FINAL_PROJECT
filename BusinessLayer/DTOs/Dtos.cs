@@ -49,6 +49,8 @@ public class SubjectDto
     public bool IsActive { get; set; }
     public int ChapterCount { get; set; }
     public int DocumentCount { get; set; }
+    public int? HeadTeacherId { get; set; }
+    public string? HeadTeacherName { get; set; }
 }
 
 public class CreateSubjectDto
@@ -148,6 +150,7 @@ public class ChatMessageDto
 public class CitationDto
 {
     public int DocumentChunkId { get; set; }
+    public int DocumentId { get; set; }
     public string ChunkText { get; set; } = string.Empty;
     public string DocumentName { get; set; } = string.Empty;
     public string ChapterName { get; set; } = string.Empty;
@@ -325,6 +328,14 @@ public class MonthlyRevenueDto
     public decimal Revenue { get; set; }
 }
 
+public class DailyRevenueDto
+{
+    public DateTime Date { get; set; }
+    public string Label { get; set; } = string.Empty;
+    public decimal Revenue { get; set; }
+    public int TransactionCount { get; set; }
+}
+
 public class UserPaymentStatsDto
 {
     public int UserId { get; set; }
@@ -365,6 +376,8 @@ public class AdminStatisticsDto
 
     public List<MonthlyCountDto> TokensByMonth { get; set; } = new();
     public List<MonthlyRevenueDto> PaymentsByMonth { get; set; } = new();
+    public List<DailyRevenueDto> PaymentsByDay { get; set; } = new();
+    public decimal TotalRevenueInPeriod { get; set; }
     public List<UserPaymentStatsDto> UserPaymentStats { get; set; } = new();
 
     public KnowledgeBaseAnalyticsDto KnowledgeBase { get; set; } = new();

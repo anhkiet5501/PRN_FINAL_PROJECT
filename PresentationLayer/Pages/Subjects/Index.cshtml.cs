@@ -128,7 +128,13 @@ public class IndexModel : PageModel
 
             if (success)
             {
-                await _hubContext.Clients.All.SendAsync("ReceiveSubjectUpdate", "update", new { subjectId = EditSubjectId, subjectCode = EditSubjectCode, subjectName = EditSubjectName });
+                await _hubContext.Clients.All.SendAsync("ReceiveSubjectUpdate", "update", new
+                {
+                    subjectId = EditSubjectId,
+                    subjectCode = EditSubjectCode,
+                    subjectName = EditSubjectName,
+                    headTeacherId = EditTeacherId
+                });
                 TempData["Success"] = "Cập nhật môn học thành công.";
             }
         }

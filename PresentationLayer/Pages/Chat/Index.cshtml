@@ -334,23 +334,30 @@
 }
 
 /* ── Citations ────────────────────────────────────────── */
-.citations-panel { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.2rem; }
+.citations-panel { display: flex; flex-direction: column; gap: 0.35rem; margin-top: 0.45rem; }
+.citations-label {
+    font-size: 0.7rem; font-weight: 700; color: #64748b;
+    text-transform: uppercase; letter-spacing: 0.03em;
+}
+.citations-list { display: flex; flex-wrap: wrap; gap: 0.35rem; }
 .citation-pill {
     display: inline-flex; align-items: center; gap: 0.3rem;
-    padding: 0.2rem 0.6rem;
+    padding: 0.25rem 0.65rem;
     background: linear-gradient(135deg, #eff6ff, #e0e7ff);
     border: 1px solid #bfdbfe; border-radius: 999px;
     font-size: 0.68rem; font-weight: 600; color: #1e40af;
     cursor: pointer; transition: all 0.15s;
-    max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    max-width: 280px; text-decoration: none;
     position: relative;
 }
-.citation-pill:hover {
+a.citation-pill:hover {
     background: linear-gradient(135deg, #dbeafe, #c7d2fe);
     border-color: #93c5fd; transform: translateY(-1px);
     box-shadow: 0 2px 6px rgba(59,130,246,0.2);
-    max-width: none; overflow: visible; white-space: normal; z-index: 10;
+    color: #1e3a8a;
 }
+.citation-pill .c-doc { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.citation-pill .c-chapter { font-weight: 500; color: #64748b; }
 .c-rank {
     width: 15px; height: 15px; background: #1e40af; color: #fff;
     border-radius: 50%; font-size: 0.58rem;
@@ -593,18 +600,22 @@
                         @if (msg.Citations.Any())
                         {
                             <div class="citations-panel">
+                                <div class="citations-label"><i class="bi bi-bookmark-check"></i> Nguồn tài liệu</div>
+                                <div class="citations-list">
                                 @foreach (var cite in msg.Citations)
                                 {
                                     var snippet = cite.ChunkText.Length > 300 ? cite.ChunkText[..300] + "..." : cite.ChunkText;
-                                    <div class="citation-pill" title="@snippet">
+                                    var label = string.IsNullOrWhiteSpace(cite.ChapterName)
+                                        ? cite.DocumentName
+                                        : $"{cite.ChapterName} · {cite.DocumentName}";
+                                    var shortLabel = label.Length > 40 ? label[..38] + "…" : label;
+                                    <a class="citation-pill" href="/Documents/Details/@cite.DocumentId" target="_blank" rel="noopener" title="@snippet">
                                         <span class="c-rank">@cite.RetrievalRank</span>
-                                        <span style="overflow:hidden;text-overflow:ellipsis;">
-                                            <i class="bi bi-file-earmark-text"></i>
-                                            @(cite.DocumentName?.Length > 25 ? cite.DocumentName[..23] + "…" : cite.DocumentName)
-                                        </span>
+                                        <span class="c-doc"><i class="bi bi-file-earmark-text"></i> @shortLabel</span>
                                         <span class="c-score">@cite.SimilarityScore.ToString("P0")</span>
-                                    </div>
+                                    </a>
                                 }
+                                </div>
                             </div>
                         }
                     </div>
@@ -842,22 +853,58 @@ function renderMd(text) {
 
 // ── Build citations element ────────────────────────────────────────────
 function buildCitationsEl(citations) {
-    const div = document.createElement('div');
-    div.className = 'citations-panel';
+    const wrap = document.createElement('div');
+    wrap.className = 'citations-panel';
+    const label = document.createElement('div');
+    label.className = 'citations-label';
+    label.innerHTML = '<i class="bi bi-bookmark-check"></i> Nguồn tài liệu';
+    wrap.appendChild(label);
+    const list = document.createElement('div');
+    list.className = 'citations-list';
     citations.forEach((c, i) => {
         const name = c.documentName || 'Tài liệu';
-        const displayName = name.length > 25 ? name.slice(0, 23) + '…' : name;
+        const chapter = c.chapterName || '';
+        const full = chapter ? `${chapter} · ${name}` : name;
+        const displayName = full.length > 40 ? full.slice(0, 38) + '…' : full;
         const score = c.similarityScore ? (c.similarityScore * 100).toFixed(0) + '%' : '';
         const snippet = (c.chunkText || '').slice(0, 300);
-        const pill = document.createElement('div');
+        const rank = c.retrievalRank || (i + 1);
+        const pill = document.createElement(c.documentId ? 'a' : 'div');
         pill.className = 'citation-pill';
         pill.title = snippet;
-        pill.innerHTML = `<span class="c-rank">${i+1}</span>
-            <span style="overflow:hidden;text-overflow:ellipsis;"><i class="bi bi-file-earmark-text"></i> ${displayName}</span>
+        if (c.documentId) {
+            pill.href = `/Documents/Details/${c.documentId}`;
+            pill.target = '_blank';
+            pill.rel = 'noopener';
+        }
+        pill.innerHTML = `<span class="c-rank">${rank}</span>
+            <span class="c-doc"><i class="bi bi-file-earmark-text"></i> ${escHtml(displayName)}</span>
             ${score ? `<span class="c-score">${score}</span>` : ''}`;
-        div.appendChild(pill);
+        list.appendChild(pill);
     });
-    return div;
+    wrap.appendChild(list);
+    return wrap;
+}
+
+function buildCitationsHtml(citations) {
+    if (!citations || !citations.length) return '';
+    const pills = citations.map((c, i) => {
+        const name = c.documentName || 'Tài liệu';
+        const chapter = c.chapterName || '';
+        const full = chapter ? `${chapter} · ${name}` : name;
+        const dn = full.length > 40 ? full.slice(0, 38) + '…' : full;
+        const sc = c.similarityScore ? (c.similarityScore * 100).toFixed(0) + '%' : '';
+        const rank = c.retrievalRank || (i + 1);
+        const href = c.documentId ? `/Documents/Details/${c.documentId}` : '#';
+        const tagOpen = c.documentId
+            ? `<a class="citation-pill" href="${href}" target="_blank" rel="noopener" title="${escHtml((c.chunkText || '').slice(0, 300))}">`
+            : `<div class="citation-pill" title="${escHtml((c.chunkText || '').slice(0, 300))}">`;
+        const tagClose = c.documentId ? '</a>' : '</div>';
+        return `${tagOpen}<span class="c-rank">${rank}</span>
+            <span class="c-doc"><i class="bi bi-file-earmark-text"></i> ${escHtml(dn)}</span>
+            ${sc ? `<span class="c-score">${sc}</span>` : ''}${tagClose}`;
+    }).join('');
+    return `<div class="citations-panel"><div class="citations-label"><i class="bi bi-bookmark-check"></i> Nguồn tài liệu</div><div class="citations-list">${pills}</div></div>`;
 }
 
 // ── Session Management ─────────────────────────────────────────────────
@@ -921,17 +968,7 @@ function renderMessageFromDto(m) {
 
     let citHtml = '';
     if (m.citations && m.citations.length > 0) {
-        citHtml = '<div class="citations-panel">' +
-            m.citations.map((c, i) => {
-                const name = c.documentName || 'Tài liệu';
-                const dn = name.length > 25 ? name.slice(0, 23) + '…' : name;
-                const sc = c.similarityScore ? (c.similarityScore * 100).toFixed(0) + '%' : '';
-                return `<div class="citation-pill" title="${escHtml((c.chunkText || '').slice(0, 300))}">
-                    <span class="c-rank">${i+1}</span>
-                    <span style="overflow:hidden;text-overflow:ellipsis;"><i class="bi bi-file-earmark-text"></i> ${dn}</span>
-                    ${sc ? `<span class="c-score">${sc}</span>` : ''}
-                </div>`;
-            }).join('') + '</div>';
+        citHtml = buildCitationsHtml(m.citations);
     }
 
     row.innerHTML = `
@@ -1084,17 +1121,7 @@ function appendMessage(role, content, citations = [], animated = true, latencyMs
 
     let citHtml = '';
     if (citations && citations.length > 0) {
-        citHtml = '<div class="citations-panel">' +
-            citations.map((c, i) => {
-                const name = c.documentName || 'Tài liệu';
-                const dn = name.length > 25 ? name.slice(0, 23) + '…' : name;
-                const sc = c.similarityScore ? (c.similarityScore * 100).toFixed(0) + '%' : '';
-                return `<div class="citation-pill" title="${escHtml((c.chunkText || '').slice(0, 300))}">
-                    <span class="c-rank">${i+1}</span>
-                    <span style="overflow:hidden;text-overflow:ellipsis;"><i class="bi bi-file-earmark-text"></i> ${dn}</span>
-                    ${sc ? `<span class="c-score">${sc}</span>` : ''}
-                </div>`;
-            }).join('') + '</div>';
+        citHtml = buildCitationsHtml(citations);
     }
 
     row.innerHTML = `
