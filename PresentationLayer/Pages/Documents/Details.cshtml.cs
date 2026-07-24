@@ -22,12 +22,15 @@ public class DetailsModel : PageModel
     public string? PreviewText { get; set; }
     public int ChunkSize { get; set; } = 512;
     public List<ChunkDisplayDto> Chunks { get; set; } = new();
+    public string BackUrl { get; set; } = "/Documents";
 
-    public async Task<IActionResult> OnGetAsync(int id)
+    public async Task<IActionResult> OnGetAsync(int id, [FromQuery(Name = "return")] string? returnUrl = null)
     {
         Document = await _documentService.GetByIdAsync(id);
         if (Document == null)
             return NotFound();
+
+        BackUrl = await ResolveBackUrlAsync(returnUrl, Document.ChapterId);
 
         ChunkSize = await _uow.DocumentIndexes.Query()
             .Where(i => i.DocumentId == id)
@@ -53,6 +56,7 @@ public class DetailsModel : PageModel
             .OrderBy(c => c.ChunkIndex)
             .Select(c => new ChunkDisplayDto
             {
+                DocumentChunkId = c.DocumentChunkId,
                 ChunkIndex = c.ChunkIndex,
                 TokenCount = c.TokenCount,
                 ChunkText = c.ChunkText
@@ -66,8 +70,22 @@ public class DetailsModel : PageModel
         return Page();
     }
 
+    private async Task<string> ResolveBackUrlAsync(string? returnUrl, int chapterId)
+    {
+        if (!string.IsNullOrWhiteSpace(returnUrl) && Url.IsLocalUrl(returnUrl))
+            return returnUrl;
+
+        var subjectId = await _uow.Chapters.Query()
+            .Where(c => c.ChapterId == chapterId)
+            .Select(c => (int?)c.SubjectId)
+            .FirstOrDefaultAsync();
+
+        return subjectId.HasValue ? $"/Subjects/{subjectId.Value}" : "/Documents";
+    }
+
     public class ChunkDisplayDto
     {
+        public int DocumentChunkId { get; set; }
         public int ChunkIndex { get; set; }
         public int TokenCount { get; set; }
         public string ChunkText { get; set; } = string.Empty;

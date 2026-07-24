@@ -198,6 +198,51 @@ public class IndexModel : PageModel
     }
 
     // ── Helpers ───────────────────────────────────────────────────────
+    public string ChatReturnUrl =>
+        CurrentSessionId.HasValue ? $"/Chat?sessionId={CurrentSessionId.Value}" : "/Chat";
+
+    /// <summary>
+    /// Escape HTML and turn [1]/[2] markers into same-tab citation links.
+    /// Ensures links work after full page reload (Quay lại).
+    /// </summary>
+    public string FormatAnswerWithCitations(ChatMessageDto msg)
+    {
+        var text = msg.Content ?? "";
+        var encoded = System.Net.WebUtility.HtmlEncode(text)
+            .Replace("\r\n", "\n")
+            .Replace("\n", "<br>");
+
+        if (msg.Citations == null || msg.Citations.Count == 0)
+            return encoded;
+
+        var byRank = msg.Citations
+            .GroupBy(c => c.RetrievalRank > 0 ? c.RetrievalRank : 0)
+            .ToDictionary(g => g.Key, g => g.First());
+
+        // Fill missing ranks by order
+        for (var i = 0; i < msg.Citations.Count; i++)
+        {
+            var rank = msg.Citations[i].RetrievalRank > 0 ? msg.Citations[i].RetrievalRank : i + 1;
+            byRank.TryAdd(rank, msg.Citations[i]);
+        }
+
+        return System.Text.RegularExpressions.Regex.Replace(
+            encoded,
+            @"\[(?:Context\s*)?(\d+)\]|【(\d+)】",
+            m =>
+            {
+                var n = int.Parse(m.Groups[1].Success ? m.Groups[1].Value : m.Groups[2].Value);
+                if (!byRank.TryGetValue(n, out var cite) || cite.DocumentId <= 0)
+                    return $"<span class=\"cite-ref\" title=\"Nguồn {n}\">{n}</span>";
+
+                var href =
+                    $"/Documents/Details/{cite.DocumentId}?return={Uri.EscapeDataString(ChatReturnUrl)}&tab=chunks&chunk={cite.DocumentChunkId}";
+                var title = System.Net.WebUtility.HtmlEncode(cite.DocumentName ?? "Tài liệu");
+                return $"<a class=\"cite-ref\" href=\"{href}\" title=\"{title}\">{n}</a>";
+            },
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+    }
+
     private async Task LoadDropdownsAsync()
     {
         AvailableSubjects = await _subjectService.GetAllAsync();

@@ -21,7 +21,7 @@
         </p>
     </div>
     <div style="display:flex; gap:0.75rem; flex-wrap:wrap; align-items: center;">
-        <a href="javascript:history.back()" class="soft-btn btn-light">
+        <a href="@Model.BackUrl" class="soft-btn btn-light" onclick="return handleDocBack(event)">
             <i class="bi bi-arrow-left"></i> Quay lại
         </a>
     </div>
@@ -102,7 +102,7 @@ else
             <div class="chunk-list">
                 @foreach (var chunk in Model.Chunks)
                 {
-                    <div class="chunk-item">
+                    <div class="chunk-item" id="chunk-@chunk.DocumentChunkId" data-chunk-index="@chunk.ChunkIndex">
                         <div class="chunk-item-header">
                             CHUNK #@chunk.ChunkIndex | @chunk.TokenCount từ
                         </div>
@@ -115,7 +115,7 @@ else
         {
             <div class="card" style="text-align:center; padding:3rem; border: 1px dashed var(--border); background:#fff;">
                 <p style="color:var(--text-muted); font-size:1.1rem; margin-bottom:1rem;">Chưa có dữ liệu chunk nào được tạo cho tài liệu này.</p>
-                <a href="javascript:history.back()" class="soft-btn btn-light">
+                <a href="@Model.BackUrl" class="soft-btn btn-light" onclick="return handleDocBack(event)">
                     <i class="bi bi-arrow-left"></i> Quay lại trang môn học
                 </a>
             </div>
@@ -125,6 +125,21 @@ else
 
 @section Scripts {
     <script>
+        function handleDocBack(e) {
+            e.preventDefault();
+            // Always prefer history.back so the chat page (with live links) is restored.
+            if (window.history.length > 1) {
+                history.back();
+                return false;
+            }
+            // Fallback: navigate to return URL on the button href
+            var href = e.currentTarget.getAttribute('href');
+            if (href && href !== '#') {
+                window.location.href = href;
+            }
+            return false;
+        }
+
         function switchTab(tabId) {
             // Hide all tab panes
             document.querySelectorAll('.tab-pane').forEach(function(pane) {
@@ -153,8 +168,21 @@ else
         document.addEventListener("DOMContentLoaded", function() {
             var urlParams = new URLSearchParams(window.location.search);
             var tabParam = urlParams.get('tab');
-            
-            if (tabParam === 'content') {
+            var chunkId = urlParams.get('chunk');
+
+            if (chunkId) {
+                switchTab('chunks');
+                setTimeout(function() {
+                    var el = document.getElementById('chunk-' + chunkId);
+                    if (!el) {
+                        el = document.querySelector('[data-chunk-index="' + chunkId + '"]');
+                    }
+                    if (el) {
+                        el.classList.add('chunk-highlight');
+                        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
+                }, 80);
+            } else if (tabParam === 'content') {
                 switchTab('content');
             } else if (tabParam === 'chunks') {
                 switchTab('chunks');
@@ -168,4 +196,12 @@ else
             }
         });
     </script>
+    <style>
+        .chunk-item.chunk-highlight {
+            outline: 2px solid #2563eb;
+            background: #eff6ff;
+            box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.15);
+            transition: background 0.3s, box-shadow 0.3s;
+        }
+    </style>
 }

@@ -136,6 +136,17 @@ public class StatisticsService : IStatisticsService
         var tokensByMonth = BuildMonthlyCounts(trendStart, trendEnd, tokensRaw
             .Select(r => (r.Year, r.Month, r.Count ?? 0)));
 
+        var tokensByYear = tokensByMonth
+            .GroupBy(m => m.Year)
+            .OrderBy(g => g.Key)
+            .Select(g => new YearlyCountDto
+            {
+                Year = g.Key,
+                Label = g.Key.ToString(),
+                Count = g.Sum(x => x.Count)
+            })
+            .ToList();
+
         var payStart = hasFrom ? fromUtc!.Value : DateTime.UtcNow.AddYears(-2);
         var paymentsQuery = _uow.PaymentTransactions.Query()
             .Where(p => p.Status == "Success" && p.CreatedAt >= payStart && p.CreatedAt < trendEnd);
@@ -189,7 +200,38 @@ public class StatisticsService : IStatisticsService
                 Year = g.Key.Year,
                 Month = g.Key.Month,
                 Label = $"{g.Key.Month:D2}/{g.Key.Year}",
-                Revenue = g.Sum(x => x.Revenue)
+                Revenue = g.Sum(x => x.Revenue),
+                TransactionCount = g.Sum(x => x.TransactionCount)
+            })
+            .ToList();
+
+        // Fill missing months in range so charts stay continuous
+        if (paymentsByMonth.Count == 0 || daySpan <= 400)
+        {
+            var payMonthMap = paymentsByMonth.ToDictionary(m => (m.Year, m.Month));
+            paymentsByMonth = EnumerateMonths(payStart, trendEnd).Select(m =>
+            {
+                payMonthMap.TryGetValue(m, out var hit);
+                return new MonthlyRevenueDto
+                {
+                    Year = m.Year,
+                    Month = m.Month,
+                    Label = $"{m.Month:D2}/{m.Year}",
+                    Revenue = hit?.Revenue ?? 0m,
+                    TransactionCount = hit?.TransactionCount ?? 0
+                };
+            }).ToList();
+        }
+
+        var paymentsByYear = paymentsByMonth
+            .GroupBy(m => m.Year)
+            .OrderBy(g => g.Key)
+            .Select(g => new YearlyRevenueDto
+            {
+                Year = g.Key,
+                Label = g.Key.ToString(),
+                Revenue = g.Sum(x => x.Revenue),
+                TransactionCount = g.Sum(x => x.TransactionCount)
             })
             .ToList();
 
@@ -259,7 +301,9 @@ public class StatisticsService : IStatisticsService
             TopChatUsers = topChatUsers,
             TopUploaders = topUploaders,
             TokensByMonth = tokensByMonth,
+            TokensByYear = tokensByYear,
             PaymentsByMonth = paymentsByMonth,
+            PaymentsByYear = paymentsByYear,
             PaymentsByDay = paymentsByDay,
             TotalRevenueInPeriod = totalRevenueInPeriod,
             UserPaymentStats = userPaymentStats,

@@ -125,6 +125,7 @@ public class ChatService : IChatService
             {
                 DocumentChunkId = c.DocumentChunkId,
                 DocumentId = c.DocumentChunk.DocumentId,
+                ChunkIndex = c.DocumentChunk.ChunkIndex,
                 ChunkText = c.DocumentChunk.ChunkText,
                 DocumentName = c.DocumentChunk.Document.OriginalFileName ?? c.DocumentChunk.Document.FileName,
                 ChapterName = c.DocumentChunk.Document.Chapter.ChapterName,
@@ -190,6 +191,7 @@ public class ChatService : IChatService
                 {
                     c.DocumentChunkId,
                     c.DocumentId,
+                    c.ChunkIndex,
                     c.ChunkText,
                     c.EmbeddingJson,
                     c.Document.OriginalFileName,
@@ -220,6 +222,7 @@ public class ChatService : IChatService
                     {
                         allChunks[r.Index].DocumentChunkId,
                         allChunks[r.Index].DocumentId,
+                        allChunks[r.Index].ChunkIndex,
                         allChunks[r.Index].ChunkText,
                         allChunks[r.Index].OriginalFileName,
                         allChunks[r.Index].ChapterName,
@@ -243,7 +246,7 @@ public class ChatService : IChatService
             for (int i = 0; i < retrievedChunks.Count; i++)
             {
                 var chunk = retrievedChunks[i];
-                contextBuilder.AppendLine($"[Context {i + 1}] (from '{chunk.ChapterName}' — {chunk.OriginalFileName}):");
+                contextBuilder.AppendLine($"[{i + 1}] (from '{chunk.ChapterName}' — {chunk.OriginalFileName}):");
                 contextBuilder.AppendLine(chunk.ChunkText);
                 contextBuilder.AppendLine();
             }
@@ -255,7 +258,7 @@ public class ChatService : IChatService
                     You are an intelligent learning assistant for a course management system.
                     Answer the student's question based ONLY on the provided context below.
                     If the context doesn't contain enough information, say so clearly.
-                    Always cite which context number(s) you used.
+                    IMPORTANT: After every claim taken from context, cite the source as [1], [2], etc. matching the context numbers.
                     Be concise, accurate, and educational.
 
                     === CONTEXT ===
@@ -268,7 +271,7 @@ public class ChatService : IChatService
                 systemPrompt = $"""
                     You are an intelligent learning assistant for a course management system.
                     You can answer the student's question using your own knowledge, but you should also refer to the provided context below if it's helpful.
-                    If you use the provided context, cite which context number(s) you used.
+                    If you use the provided context, cite the source as [1], [2], etc. after the relevant sentence.
                     Be concise, accurate, and educational.
 
                     === CONTEXT ===
@@ -359,6 +362,7 @@ public class ChatService : IChatService
                 {
                     DocumentChunkId = c.DocumentChunkId,
                     DocumentId = c.DocumentId,
+                    ChunkIndex = c.ChunkIndex,
                     ChunkText = c.ChunkText,
                     DocumentName = c.OriginalFileName ?? "Unknown",
                     ChapterName = c.ChapterName,
@@ -497,6 +501,7 @@ public class ChatService : IChatService
                 {
                     c.DocumentChunkId,
                     c.DocumentId,
+                    c.ChunkIndex,
                     c.ChunkText,
                     c.EmbeddingJson,
                     c.Document.OriginalFileName,
@@ -527,6 +532,7 @@ public class ChatService : IChatService
                     {
                         allChunks[r.Index].DocumentChunkId,
                         allChunks[r.Index].DocumentId,
+                        allChunks[r.Index].ChunkIndex,
                         allChunks[r.Index].ChunkText,
                         allChunks[r.Index].OriginalFileName,
                         allChunks[r.Index].ChapterName,
@@ -550,7 +556,7 @@ public class ChatService : IChatService
             for (int i = 0; i < retrievedChunks.Count; i++)
             {
                 var chunk = retrievedChunks[i];
-                contextBuilder.AppendLine($"[Context {i + 1}] (from '{chunk.ChapterName}' — {chunk.OriginalFileName}):");
+                contextBuilder.AppendLine($"[{i + 1}] (from '{chunk.ChapterName}' — {chunk.OriginalFileName}):");
                 contextBuilder.AppendLine(chunk.ChunkText);
                 contextBuilder.AppendLine();
             }
@@ -563,7 +569,7 @@ public class ChatService : IChatService
                     BẠN CHỈ ĐƯỢC PHÉP trả lời dựa trên nội dung tài liệu (CONTEXT) bên dưới. Tuyệt đối không được sử dụng kiến thức bên ngoài.
                     Nếu ngữ cảnh không có thông tin để trả lời, hãy nói: "Tôi không tìm thấy thông tin trong tài liệu".
                     Nếu người dùng yêu cầu thay đổi ngôn ngữ (vd: dịch sang tiếng Anh) hoặc định dạng câu trả lời (vd: lập bảng, tóm tắt), hãy ÁP DỤNG yêu cầu đó cho nội dung lấy từ CONTEXT. Bạn không được từ chối việc định dạng nếu trong CONTEXT có dữ liệu.
-                    BẮT BUỘC PHẢI TRÍCH DẪN TÊN TÀI LIỆU (ví dụ: [Tên tài liệu]) ở mỗi ý bạn lấy từ ngữ cảnh.
+                    BẮT BUỘC: Sau mỗi ý lấy từ CONTEXT, ghi chú nguồn dạng [1], [2], ... khớp với số CONTEXT.
 
                     === CONTEXT ===
                     {contextBuilder}
@@ -576,7 +582,7 @@ public class ChatService : IChatService
                     Bạn là một trợ lý AI thông minh cho hệ thống học tập.
                     Bạn có thể sử dụng kiến thức bên ngoài, nhưng hãy ưu tiên sử dụng nội dung tài liệu (CONTEXT) bên dưới nếu có liên quan.
                     Nếu người dùng yêu cầu thay đổi ngôn ngữ (vd: dịch sang tiếng Anh) hoặc định dạng câu trả lời, hãy thực hiện theo.
-                    Nếu bạn sử dụng thông tin từ CONTEXT, BẮT BUỘC PHẢI TRÍCH DẪN TÊN TÀI LIỆU (ví dụ: [Tên tài liệu]) ở mỗi ý bạn lấy từ ngữ cảnh.
+                    Nếu bạn sử dụng thông tin từ CONTEXT, BẮT BUỘC ghi chú nguồn dạng [1], [2], ... sau câu tương ứng.
 
                     === CONTEXT ===
                     {contextBuilder}
@@ -674,6 +680,7 @@ public class ChatService : IChatService
                 {
                     DocumentChunkId = c.DocumentChunkId,
                     DocumentId = c.DocumentId,
+                    ChunkIndex = c.ChunkIndex,
                     ChunkText = c.ChunkText,
                     DocumentName = c.OriginalFileName ?? "Unknown",
                     ChapterName = c.ChapterName,

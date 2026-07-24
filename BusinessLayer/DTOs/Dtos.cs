@@ -151,6 +151,7 @@ public class CitationDto
 {
     public int DocumentChunkId { get; set; }
     public int DocumentId { get; set; }
+    public int ChunkIndex { get; set; }
     public string ChunkText { get; set; } = string.Empty;
     public string DocumentName { get; set; } = string.Empty;
     public string ChapterName { get; set; } = string.Empty;
@@ -326,6 +327,22 @@ public class MonthlyRevenueDto
     public int Month { get; set; }
     public string Label { get; set; } = string.Empty;
     public decimal Revenue { get; set; }
+    public int TransactionCount { get; set; }
+}
+
+public class YearlyCountDto
+{
+    public int Year { get; set; }
+    public string Label { get; set; } = string.Empty;
+    public int Count { get; set; }
+}
+
+public class YearlyRevenueDto
+{
+    public int Year { get; set; }
+    public string Label { get; set; } = string.Empty;
+    public decimal Revenue { get; set; }
+    public int TransactionCount { get; set; }
 }
 
 public class DailyRevenueDto
@@ -375,7 +392,9 @@ public class AdminStatisticsDto
     public List<TopUserActivityDto> TopUploaders { get; set; } = new();
 
     public List<MonthlyCountDto> TokensByMonth { get; set; } = new();
+    public List<YearlyCountDto> TokensByYear { get; set; } = new();
     public List<MonthlyRevenueDto> PaymentsByMonth { get; set; } = new();
+    public List<YearlyRevenueDto> PaymentsByYear { get; set; } = new();
     public List<DailyRevenueDto> PaymentsByDay { get; set; } = new();
     public decimal TotalRevenueInPeriod { get; set; }
     public List<UserPaymentStatsDto> UserPaymentStats { get; set; } = new();

@@ -595,7 +595,29 @@
 </div>
 
 @* ── Finance & Tokens ───────────────────────────────────── *@
-<h2 class="stats-section-title"><i class="bi bi-wallet2"></i> Doanh thu &amp; tiêu thụ token</h2>
+<h2 class="stats-section-title"><i class="bi bi-cpu"></i> Thống kê token</h2>
+<div class="stats-charts-row">
+    <div class="stats-chart-card">
+        <div class="stats-chart-title"><i class="bi bi-bar-chart"></i> Token theo tháng — cột (@s.PeriodLabel)</div>
+        <div class="stats-chart-wrap"><canvas id="tokensMonthBarChart"></canvas></div>
+    </div>
+    <div class="stats-chart-card">
+        <div class="stats-chart-title"><i class="bi bi-graph-up"></i> Token theo tháng — đường (@s.PeriodLabel)</div>
+        <div class="stats-chart-wrap"><canvas id="tokensMonthLineChart"></canvas></div>
+    </div>
+</div>
+<div class="stats-charts-row">
+    <div class="stats-chart-card">
+        <div class="stats-chart-title"><i class="bi bi-bar-chart"></i> Token theo năm — cột</div>
+        <div class="stats-chart-wrap"><canvas id="tokensYearBarChart"></canvas></div>
+    </div>
+    <div class="stats-chart-card">
+        <div class="stats-chart-title"><i class="bi bi-graph-up"></i> Token theo năm — đường</div>
+        <div class="stats-chart-wrap"><canvas id="tokensYearLineChart"></canvas></div>
+    </div>
+</div>
+
+<h2 class="stats-section-title"><i class="bi bi-wallet2"></i> Doanh thu mua gói (Payment)</h2>
 <div class="stats-kpi-row">
     <div class="stats-kpi-card">
         <div class="stats-kpi-icon green"><i class="bi bi-cash-stack"></i></div>
@@ -605,47 +627,64 @@
         </div>
     </div>
     <div class="stats-kpi-card">
-        <div class="stats-kpi-icon teal"><i class="bi bi-calendar-check"></i></div>
+        <div class="stats-kpi-icon teal"><i class="bi bi-calendar-month"></i></div>
         <div>
-            <div class="stats-kpi-value">@s.PaymentsByDay.Count(d => d.Revenue > 0)</div>
-            <div class="stats-kpi-label">Số ngày có doanh thu</div>
+            <div class="stats-kpi-value">@s.PaymentsByMonth.Count(m => m.Revenue > 0)</div>
+            <div class="stats-kpi-label">Số tháng có doanh thu</div>
+        </div>
+    </div>
+    <div class="stats-kpi-card">
+        <div class="stats-kpi-icon purple"><i class="bi bi-calendar3"></i></div>
+        <div>
+            <div class="stats-kpi-value">@s.PaymentsByYear.Count(y => y.Revenue > 0)</div>
+            <div class="stats-kpi-label">Số năm có doanh thu</div>
         </div>
     </div>
 </div>
 <div class="stats-charts-row">
     <div class="stats-chart-card">
-        <div class="stats-chart-title"><i class="bi bi-bar-chart"></i> Tổng token theo tháng (@s.PeriodLabel)</div>
-        <div class="stats-chart-wrap"><canvas id="tokensChart"></canvas></div>
+        <div class="stats-chart-title"><i class="bi bi-bar-chart"></i> Doanh thu theo tháng — cột (VNĐ)</div>
+        <div class="stats-chart-wrap"><canvas id="payMonthBarChart"></canvas></div>
     </div>
     <div class="stats-chart-card">
-        <div class="stats-chart-title"><i class="bi bi-graph-up-arrow"></i> Doanh thu theo ngày (VNĐ) — @s.PeriodLabel</div>
-        <div class="stats-chart-wrap" style="height:280px;"><canvas id="revenueChart"></canvas></div>
+        <div class="stats-chart-title"><i class="bi bi-graph-up"></i> Doanh thu theo tháng — đường (VNĐ)</div>
+        <div class="stats-chart-wrap"><canvas id="payMonthLineChart"></canvas></div>
+    </div>
+</div>
+<div class="stats-charts-row">
+    <div class="stats-chart-card">
+        <div class="stats-chart-title"><i class="bi bi-bar-chart"></i> Doanh thu theo năm — cột (VNĐ)</div>
+        <div class="stats-chart-wrap"><canvas id="payYearBarChart"></canvas></div>
+    </div>
+    <div class="stats-chart-card">
+        <div class="stats-chart-title"><i class="bi bi-graph-up"></i> Doanh thu theo năm — đường (VNĐ)</div>
+        <div class="stats-chart-wrap"><canvas id="payYearLineChart"></canvas></div>
     </div>
 </div>
 <div class="stats-tables-row">
     <div class="stats-table-card">
-        <h3><i class="bi bi-calendar3"></i> Doanh thu từng ngày</h3>
+        <h3><i class="bi bi-calendar3"></i> Doanh thu theo tháng</h3>
         @{
-            var daysWithRevenue = s.PaymentsByDay.Where(d => d.Revenue > 0).OrderByDescending(d => d.Date).ToList();
+            var monthsWithRevenue = s.PaymentsByMonth.Where(m => m.Revenue > 0).OrderByDescending(m => m.Year).ThenByDescending(m => m.Month).ToList();
         }
-        @if (daysWithRevenue.Any())
+        @if (monthsWithRevenue.Any())
         {
             <div style="max-height: 360px; overflow-y: auto;">
                 <table class="stats-table">
                     <thead>
                         <tr>
-                            <th>Ngày</th>
+                            <th>Tháng</th>
                             <th>Số giao dịch</th>
                             <th>Doanh thu</th>
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach (var day in daysWithRevenue)
+                        @foreach (var month in monthsWithRevenue)
                         {
                             <tr>
-                                <td style="font-weight:600;">@day.Label</td>
-                                <td>@day.TransactionCount</td>
-                                <td style="color:#16a34a; font-weight:700;">@day.Revenue.ToString("N0") đ</td>
+                                <td style="font-weight:600;">@month.Label</td>
+                                <td>@month.TransactionCount</td>
+                                <td style="color:#16a34a; font-weight:700;">@month.Revenue.ToString("N0") đ</td>
                             </tr>
                         }
                     </tbody>
@@ -655,7 +694,7 @@
         else { <div class="stats-empty">Chưa có doanh thu trong kỳ này.</div> }
     </div>
     <div class="stats-table-card">
-        <h3><i class="bi bi-person-lines-fill"></i> Chi tiết chi tiêu của người dùng</h3>
+        <h3><i class="bi bi-person-lines-fill"></i> Chi tiết user: token &amp; mua gói</h3>
         @if (s.UserPaymentStats.Any())
         {
             <div style="max-height: 360px; overflow-y: auto;">
@@ -664,8 +703,9 @@
                         <tr>
                             <th>#</th>
                             <th>Người dùng</th>
-                            <th>Gói</th>
-                            <th>Chi trả</th>
+                            <th>Gói hiện tại</th>
+                            <th>Token đã dùng</th>
+                            <th>Tiền mua gói</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -679,6 +719,7 @@
                                     <div style="font-size:0.75rem;color:var(--text-muted);">@user.Email</div>
                                 </td>
                                 <td><span class="badge" style="background:var(--accent);color:#fff;padding:4px 8px;border-radius:4px;">@user.CurrentPlan</span></td>
+                                <td style="font-weight:700;color:#7c3aed;">@user.TotalTokensUsed.ToString("N0")</td>
                                 <td style="color:#16a34a; font-weight:700;">@user.TotalMoneySpent.ToString("N0") đ</td>
                             </tr>
                             payIdx++;
@@ -687,7 +728,7 @@
                 </table>
             </div>
         }
-        else { <div class="stats-empty">Chưa có giao dịch nào.</div> }
+        else { <div class="stats-empty">Chưa có dữ liệu người dùng.</div> }
     </div>
 </div>
 
@@ -791,44 +832,27 @@
         peakData.map(h => h.count),
         '#0d9488');
 
-    const tokensData = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(
+    const tokensMonthData = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(
         s.TokensByMonth.Select(m => new { label = m.Label, count = m.Count }).ToList()));
-    const tokensCtx = document.getElementById('tokensChart');
-    if (tokensCtx && tokensData) {
-        new Chart(tokensCtx, {
-            type: 'bar',
-            data: {
-                labels: tokensData.map(m => m.label),
-                datasets: [{
-                    label: 'Token',
-                    data: tokensData.map(m => m.count),
-                    backgroundColor: 'rgba(124, 58, 237, 0.7)',
-                    borderColor: '#7c3aed',
-                    borderWidth: 1,
-                    borderRadius: 4
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: { legend: { display: false } }
-            }
-        });
-    }
+    const tokensYearData = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(
+        s.TokensByYear.Select(m => new { label = m.Label, count = m.Count }).ToList()));
+    const payMonthData = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(
+        s.PaymentsByMonth.Select(m => new { label = m.Label, revenue = m.Revenue }).ToList()));
+    const payYearData = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(
+        s.PaymentsByYear.Select(m => new { label = m.Label, revenue = m.Revenue }).ToList()));
 
-    const revData = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(
-        s.PaymentsByDay.Select(m => new { label = m.Label, revenue = m.Revenue }).ToList()));
-    const revCtx = document.getElementById('revenueChart');
-    if (revCtx && revData) {
-        new Chart(revCtx, {
+    function makeBarChart(id, labels, values, color, valueLabel, money) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        new Chart(el, {
             type: 'bar',
             data: {
-                labels: revData.map(m => m.label),
+                labels,
                 datasets: [{
-                    label: 'Doanh thu (đ)',
-                    data: revData.map(m => m.revenue),
-                    backgroundColor: 'rgba(22, 163, 74, 0.65)',
-                    borderColor: '#16a34a',
+                    label: valueLabel,
+                    data: values,
+                    backgroundColor: color + 'B3',
+                    borderColor: color,
                     borderWidth: 1,
                     borderRadius: 4
                 }]
@@ -837,37 +861,76 @@
                 responsive: true,
                 maintainAspectRatio: false,
                 scales: {
-                    x: {
-                        ticks: {
-                            maxRotation: 60,
-                            minRotation: 45,
-                            autoSkip: true,
-                            maxTicksLimit: 15
-                        }
-                    },
                     y: {
                         beginAtZero: true,
-                        ticks: {
-                            callback: function (v) { return Number(v).toLocaleString('vi-VN'); }
-                        }
+                        ticks: money
+                            ? { callback: v => Number(v).toLocaleString('vi-VN') }
+                            : { precision: 0, callback: v => Number(v).toLocaleString('vi-VN') }
                     }
                 },
                 plugins: {
                     legend: { display: false },
                     tooltip: {
                         callbacks: {
-                            title: function (items) {
-                                return 'Ngày ' + (items[0]?.label || '');
-                            },
-                            label: function (item) {
-                                return 'Doanh thu: ' + Number(item.raw).toLocaleString('vi-VN') + ' đ';
-                            }
+                            label: item => valueLabel + ': ' + Number(item.raw).toLocaleString('vi-VN') + (money ? ' đ' : '')
                         }
                     }
                 }
             }
         });
     }
+
+    function makeLineChart(id, labels, values, color, valueLabel, money) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        new Chart(el, {
+            type: 'line',
+            data: {
+                labels,
+                datasets: [{
+                    label: valueLabel,
+                    data: values,
+                    borderColor: color,
+                    backgroundColor: color + '1F',
+                    fill: true,
+                    tension: 0.3,
+                    borderWidth: 2,
+                    pointRadius: 4,
+                    pointBackgroundColor: color
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: money
+                            ? { callback: v => Number(v).toLocaleString('vi-VN') }
+                            : { precision: 0, callback: v => Number(v).toLocaleString('vi-VN') }
+                    }
+                },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: item => valueLabel + ': ' + Number(item.raw).toLocaleString('vi-VN') + (money ? ' đ' : '')
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    makeBarChart('tokensMonthBarChart', tokensMonthData.map(m => m.label), tokensMonthData.map(m => m.count), '#7c3aed', 'Token', false);
+    makeLineChart('tokensMonthLineChart', tokensMonthData.map(m => m.label), tokensMonthData.map(m => m.count), '#7c3aed', 'Token', false);
+    makeBarChart('tokensYearBarChart', tokensYearData.map(m => m.label), tokensYearData.map(m => m.count), '#9333ea', 'Token', false);
+    makeLineChart('tokensYearLineChart', tokensYearData.map(m => m.label), tokensYearData.map(m => m.count), '#9333ea', 'Token', false);
+
+    makeBarChart('payMonthBarChart', payMonthData.map(m => m.label), payMonthData.map(m => m.revenue), '#16a34a', 'Doanh thu', true);
+    makeLineChart('payMonthLineChart', payMonthData.map(m => m.label), payMonthData.map(m => m.revenue), '#16a34a', 'Doanh thu', true);
+    makeBarChart('payYearBarChart', payYearData.map(m => m.label), payYearData.map(m => m.revenue), '#0d9488', 'Doanh thu', true);
+    makeLineChart('payYearLineChart', payYearData.map(m => m.label), payYearData.map(m => m.revenue), '#0d9488', 'Doanh thu', true);
 })();
 </script>
 }

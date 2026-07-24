@@ -365,6 +365,24 @@ a.citation-pill:hover {
 }
 .c-score { margin-left: auto; font-size: 0.62rem; background: rgba(30,64,175,0.1); border-radius: 999px; padding: 0 0.3rem; }
 
+/* Inline citation markers inside answer text */
+.cite-ref {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 1.15rem; height: 1.15rem; padding: 0 0.28rem;
+    margin: 0 0.12rem; vertical-align: super;
+    background: #1e40af; color: #fff !important;
+    border-radius: 999px; font-size: 0.65rem; font-weight: 700;
+    text-decoration: none !important; line-height: 1;
+    box-shadow: 0 1px 2px rgba(30,64,175,0.25);
+}
+.cite-ref:hover { background: #1d4ed8; color: #fff !important; transform: translateY(-1px); }
+.cite-mark {
+    background: linear-gradient(120deg, rgba(59,130,246,0.14), rgba(124,58,237,0.12));
+    border-bottom: 2px solid #93c5fd;
+    padding: 0.05rem 0.15rem;
+    border-radius: 3px;
+}
+
 /* ── Typing Indicator ─────────────────────────────────── */
 .typing-row { display: flex; gap: 0.6rem; align-items: flex-start; }
 .typing-bubble {
@@ -581,14 +599,28 @@ a.citation-pill:hover {
             @foreach (var msg in Model.Messages)
             {
                 var fmtContent = string.IsNullOrWhiteSpace(msg.Content) ? "" : msg.Content;
+                var displayHtml = msg.Role == "assistant"
+                    ? Model.FormatAnswerWithCitations(msg)
+                    : System.Net.WebUtility.HtmlEncode(fmtContent).Replace("\n", "<br>");
                 <div class="msg-row @msg.Role">
                     <div class="msg-avatar">
                         @if (msg.Role == "user") { <i class="bi bi-person-fill"></i> }
                         else { <i class="bi bi-stars"></i> }
                     </div>
                     <div class="msg-body">
-                        <div class="msg-bubble" data-raw="@System.Net.WebUtility.HtmlEncode(fmtContent)">
-                            @Html.Raw(fmtContent)
+                        <div class="msg-bubble"
+                             data-linked="1"
+                             data-raw="@System.Net.WebUtility.HtmlEncode(fmtContent)"
+                             data-citations="@System.Net.WebUtility.HtmlEncode(System.Text.Json.JsonSerializer.Serialize(msg.Citations.Select(c => new {
+                                 documentChunkId = c.DocumentChunkId,
+                                 documentId = c.DocumentId,
+                                 chunkIndex = c.ChunkIndex,
+                                 documentName = c.DocumentName,
+                                 chapterName = c.ChapterName,
+                                 similarityScore = c.SimilarityScore,
+                                 retrievalRank = c.RetrievalRank
+                             })))">
+                            @Html.Raw(displayHtml)
                         </div>
                         <div class="msg-meta">
                             <span>@msg.CreatedAt.ToLocalTime().ToString("HH:mm")</span>
@@ -609,7 +641,7 @@ a.citation-pill:hover {
                                         ? cite.DocumentName
                                         : $"{cite.ChapterName} · {cite.DocumentName}";
                                     var shortLabel = label.Length > 40 ? label[..38] + "…" : label;
-                                    <a class="citation-pill" href="/Documents/Details/@cite.DocumentId" target="_blank" rel="noopener" title="@snippet">
+                                    <a class="citation-pill" href="/Documents/Details/@cite.DocumentId?return=@Uri.EscapeDataString(Model.ChatReturnUrl)&amp;tab=chunks&amp;chunk=@cite.DocumentChunkId" title="@snippet">
                                         <span class="c-rank">@cite.RetrievalRank</span>
                                         <span class="c-doc"><i class="bi bi-file-earmark-text"></i> @shortLabel</span>
                                         <span class="c-score">@cite.SimilarityScore.ToString("P0")</span>
@@ -783,16 +815,18 @@ async function initSignalR() {
 
             const bubble = streamingBubbleEl.querySelector('.msg-bubble');
             if (bubble) {
-                bubble.innerHTML = renderMd(streamingRawText);
                 bubble.setAttribute('data-raw', streamingRawText);
+                if (data.citations && data.citations.length > 0) {
+                    bubble.setAttribute('data-citations', JSON.stringify(slimCitations(data.citations)));
+                    bubble.setAttribute('data-linked', '1');
+                    bubble.innerHTML = renderAnswerHtml(streamingRawText, data.citations);
+                    const body = streamingBubbleEl.querySelector('.msg-body');
+                    if (body) body.appendChild(buildCitationsEl(data.citations));
+                } else {
+                    bubble.innerHTML = renderMd(streamingRawText);
+                }
             }
             streamingBubbleEl.classList.remove('streaming-bubble');
-
-            // Add citations
-            if (data.citations && data.citations.length > 0) {
-                const body = streamingBubbleEl.querySelector('.msg-body');
-                if (body) body.appendChild(buildCitationsEl(data.citations));
-            }
 
             // Add latency meta
             if (data.latencyMs) {
@@ -851,6 +885,74 @@ function renderMd(text) {
         .replace(/\n/g,'<br>');
 }
 
+// ── Citation helpers ───────────────────────────────────────────────────
+function citationDocUrl(c) {
+    if (!c || !c.documentId) return '#';
+    const chatReturn = currentSessionId
+        ? `/Chat?sessionId=${currentSessionId}`
+        : '/Chat';
+    const params = new URLSearchParams({
+        return: chatReturn,
+        tab: 'chunks'
+    });
+    if (c.documentChunkId) params.set('chunk', String(c.documentChunkId));
+    return `/Documents/Details/${c.documentId}?${params.toString()}`;
+}
+
+function slimCitations(citations) {
+    return (citations || []).map((c, i) => ({
+        documentChunkId: c.documentChunkId,
+        documentId: c.documentId,
+        chunkIndex: c.chunkIndex,
+        documentName: c.documentName,
+        chapterName: c.chapterName,
+        similarityScore: c.similarityScore,
+        retrievalRank: c.retrievalRank || (i + 1)
+    }));
+}
+
+/** Turn [1], [2], [Context 1] markers into same-tab links; highlight the preceding clause. */
+function linkifyCitations(html, citations) {
+    if (!html) return html;
+    if (!citations || !citations.length) return html;
+
+    const byRank = {};
+    citations.forEach((c, i) => {
+        const rank = c.retrievalRank || (i + 1);
+        byRank[rank] = c;
+    });
+
+    const makeRef = (n) => {
+        const c = byRank[n];
+        if (!c || !c.documentId) {
+            return `<span class="cite-ref" title="Nguồn ${n}">${n}</span>`;
+        }
+        const name = c.documentName || 'Tài liệu';
+        return `<a class="cite-ref" href="${citationDocUrl(c)}" title="${escHtml(name)}">${n}</a>`;
+    };
+
+    // Highlight short preceding phrase + replace marker: ...text [1]
+    let out = html.replace(/((?:[^<>\[【]|\s){1,180}?)(\s*)(\[(?:Context\s*)?(\d+)\]|【(\d+)】)/gi,
+        (match, before, space, _full, a, b) => {
+            const n = parseInt(a || b, 10);
+            const marked = before.trim().length
+                ? `<span class="cite-mark">${before}</span>${space}`
+                : before + space;
+            return marked + makeRef(n);
+        });
+
+    // Fallback: remaining bare markers
+    out = out.replace(/\[(?:Context\s*)?(\d+)\]|【(\d+)】/gi, (match, a, b) => {
+        return makeRef(parseInt(a || b, 10));
+    });
+
+    return out;
+}
+
+function renderAnswerHtml(content, citations) {
+    return linkifyCitations(renderMd(content || ''), citations || []);
+}
+
 // ── Build citations element ────────────────────────────────────────────
 function buildCitationsEl(citations) {
     const wrap = document.createElement('div');
@@ -873,9 +975,7 @@ function buildCitationsEl(citations) {
         pill.className = 'citation-pill';
         pill.title = snippet;
         if (c.documentId) {
-            pill.href = `/Documents/Details/${c.documentId}`;
-            pill.target = '_blank';
-            pill.rel = 'noopener';
+            pill.href = citationDocUrl(c);
         }
         pill.innerHTML = `<span class="c-rank">${rank}</span>
             <span class="c-doc"><i class="bi bi-file-earmark-text"></i> ${escHtml(displayName)}</span>
@@ -895,9 +995,9 @@ function buildCitationsHtml(citations) {
         const dn = full.length > 40 ? full.slice(0, 38) + '…' : full;
         const sc = c.similarityScore ? (c.similarityScore * 100).toFixed(0) + '%' : '';
         const rank = c.retrievalRank || (i + 1);
-        const href = c.documentId ? `/Documents/Details/${c.documentId}` : '#';
+        const href = citationDocUrl(c);
         const tagOpen = c.documentId
-            ? `<a class="citation-pill" href="${href}" target="_blank" rel="noopener" title="${escHtml((c.chunkText || '').slice(0, 300))}">`
+            ? `<a class="citation-pill" href="${href}" title="${escHtml((c.chunkText || '').slice(0, 300))}">`
             : `<div class="citation-pill" title="${escHtml((c.chunkText || '').slice(0, 300))}">`;
         const tagClose = c.documentId ? '</a>' : '</div>';
         return `${tagOpen}<span class="c-rank">${rank}</span>
@@ -962,7 +1062,9 @@ function renderMessageFromDto(m) {
         ? 'background:#1e88e5;color:#fff;'
         : 'background:linear-gradient(135deg,#7c3aed,#4f46e5);color:#fff;';
 
-    const content = m.role === 'assistant' ? renderMd(m.content) : escHtml(m.content).replace(/\n/g, '<br>');
+    const content = m.role === 'assistant'
+        ? renderAnswerHtml(m.content, m.citations || [])
+        : escHtml(m.content).replace(/\n/g, '<br>');
     const timeStr = m.createdAt ? new Date(m.createdAt).toLocaleTimeString('vi', { hour: '2-digit', minute: '2-digit' }) : '';
     const latencyHtml = m.latencyMs ? `<span class="msg-latency"><i class="bi bi-speedometer2"></i> ${m.latencyMs} ms</span>` : '';
 
@@ -971,10 +1073,14 @@ function renderMessageFromDto(m) {
         citHtml = buildCitationsHtml(m.citations);
     }
 
+    const dataAttrs = m.role === 'assistant'
+        ? ` data-raw="${escHtml(m.content || '')}" data-citations="${escHtml(JSON.stringify(slimCitations(m.citations || [])))}"`
+        : '';
+
     row.innerHTML = `
         <div class="msg-avatar" style="${avatarStyle}"><i class="bi ${avatarIcon}"></i></div>
         <div class="msg-body">
-            <div class="msg-bubble">${content}</div>
+            <div class="msg-bubble"${dataAttrs}>${content}</div>
             <div class="msg-meta"><span>${timeStr}</span>${latencyHtml}</div>
             ${citHtml}
         </div>`;
@@ -1115,7 +1221,9 @@ function appendMessage(role, content, citations = [], animated = true, latencyMs
         : 'background:linear-gradient(135deg,#7c3aed,#4f46e5);color:#fff;';
 
     const bubbleClass = isError ? 'msg-bubble is-error' : 'msg-bubble';
-    const renderedContent = role === 'assistant' ? renderMd(content) : escHtml(content).replace(/\n/g,'<br>');
+    const renderedContent = role === 'assistant'
+        ? renderAnswerHtml(content, citations)
+        : escHtml(content).replace(/\n/g,'<br>');
     const timeStr = new Date().toLocaleTimeString('vi', { hour: '2-digit', minute: '2-digit' });
     const latHtml = latencyMs ? `<span class="msg-latency"><i class="bi bi-speedometer2"></i> ${latencyMs} ms</span>` : '';
 
@@ -1124,10 +1232,14 @@ function appendMessage(role, content, citations = [], animated = true, latencyMs
         citHtml = buildCitationsHtml(citations);
     }
 
+    const dataAttrs = role === 'assistant'
+        ? ` data-raw="${escHtml(content)}" data-citations="${escHtml(JSON.stringify(slimCitations(citations)))}"`
+        : '';
+
     row.innerHTML = `
         <div class="msg-avatar" style="${avatarStyle}"><i class="bi ${avatarIcon}"></i></div>
         <div class="msg-body">
-            <div class="${bubbleClass}">${renderedContent}</div>
+            <div class="${bubbleClass}"${dataAttrs}>${renderedContent}</div>
             <div class="msg-meta"><span>${timeStr}</span>${latHtml}</div>
             ${citHtml}
         </div>`;
@@ -1298,13 +1410,40 @@ function closeModal() { modalBackdrop.classList.remove('open'); }
 function closeModalOnBackdrop(e) { if (e.target === modalBackdrop) closeModal(); }
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
 
-// ── Render existing messages with Markdown ─────────────────────────────
+// ── Render existing messages with Markdown + citation links ────────────
 function renderExistingMessages() {
     document.querySelectorAll('.msg-row.assistant .msg-bubble').forEach(bubble => {
-        const raw = bubble.getAttribute('data-raw') || bubble.textContent;
-        if (raw) bubble.innerHTML = renderMd(raw);
+        // Already linked by server or streaming — never destroy
+        if (bubble.getAttribute('data-linked') === '1') return;
+        if (bubble.querySelector('a.cite-ref, span.cite-ref')) return;
+
+        const raw = bubble.getAttribute('data-raw') || '';
+        if (!raw) return;
+
+        let citations = [];
+        try {
+            const rawCit = bubble.getAttribute('data-citations');
+            if (rawCit) citations = JSON.parse(rawCit);
+        } catch (e) {
+            console.warn('Không parse được data-citations:', e);
+            return;
+        }
+
+        bubble.innerHTML = renderAnswerHtml(raw, citations);
+        if (citations.length) bubble.setAttribute('data-linked', '1');
     });
 }
+
+// Back-forward cache: NEVER re-render — keep existing working links
+window.addEventListener('pageshow', function (e) {
+    if (e.persisted) {
+        // Ensure citation anchors are still interactive after bfcache restore
+        document.querySelectorAll('a.cite-ref').forEach(a => {
+            a.style.pointerEvents = 'auto';
+            a.removeAttribute('disabled');
+        });
+    }
+});
 
 // ── Init ───────────────────────────────────────────────────────────────
 (async function init() {
