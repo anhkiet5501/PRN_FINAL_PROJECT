@@ -629,7 +629,7 @@ a.citation-pill:hover {
                                 <span class="msg-latency"><i class="bi bi-speedometer2"></i> @msg.LatencyMs ms</span>
                             }
                         </div>
-                        @if (msg.Citations.Any())
+                        @if (msg.Citations.Any() && System.Text.RegularExpressions.Regex.IsMatch(fmtContent, @"\[(?:Context\s*)?\d+\]|【\d+】"))
                         {
                             <div class="citations-panel">
                                 <div class="citations-label"><i class="bi bi-bookmark-check"></i> Nguồn tài liệu</div>
@@ -816,7 +816,7 @@ async function initSignalR() {
             const bubble = streamingBubbleEl.querySelector('.msg-bubble');
             if (bubble) {
                 bubble.setAttribute('data-raw', streamingRawText);
-                if (data.citations && data.citations.length > 0) {
+                if (data.citations && data.citations.length > 0 && /\[(?:Context\s*)?(\d+)\]|【(\d+)】/i.test(streamingRawText)) {
                     bubble.setAttribute('data-citations', JSON.stringify(slimCitations(data.citations)));
                     bubble.setAttribute('data-linked', '1');
                     bubble.innerHTML = renderAnswerHtml(streamingRawText, data.citations);
@@ -986,8 +986,9 @@ function buildCitationsEl(citations) {
     return wrap;
 }
 
-function buildCitationsHtml(citations) {
+function buildCitationsHtml(citations, content) {
     if (!citations || !citations.length) return '';
+    if (!content || !/\[(?:Context\s*)?(\d+)\]|【(\d+)】/i.test(content)) return '';
     const pills = citations.map((c, i) => {
         const name = c.documentName || 'Tài liệu';
         const chapter = c.chapterName || '';
@@ -1070,7 +1071,7 @@ function renderMessageFromDto(m) {
 
     let citHtml = '';
     if (m.citations && m.citations.length > 0) {
-        citHtml = buildCitationsHtml(m.citations);
+        citHtml = buildCitationsHtml(m.citations, m.content);
     }
 
     const dataAttrs = m.role === 'assistant'
@@ -1229,7 +1230,7 @@ function appendMessage(role, content, citations = [], animated = true, latencyMs
 
     let citHtml = '';
     if (citations && citations.length > 0) {
-        citHtml = buildCitationsHtml(citations);
+        citHtml = buildCitationsHtml(citations, content);
     }
 
     const dataAttrs = role === 'assistant'
